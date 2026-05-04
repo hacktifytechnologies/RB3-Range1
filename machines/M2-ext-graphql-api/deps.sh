@@ -7,10 +7,10 @@ GREEN='\033[0;32m'; NC='\033[0m'
 log() { echo -e "${GREEN}[DEPS]${NC} $*"; }
 
 log "=== M2 ext-graphql-api deps.sh ==="
-apt-get update -qq
-apt-get install -y -qq python3 python3-pip sqlite3 curl netcat-openbsd ncat
+apt-get update 
+apt-get install -y python3 python3-pip sqlite3 curl netcat-openbsd
 
-pip3 install -q \
+pip3 install \
     flask==2.3.3 \
     strawberry-graphql==0.219.2 \
     flask-cors==4.0.0 \
@@ -18,5 +18,5 @@ pip3 install -q \
     gunicorn==21.2.0 \
     python-dateutil==2.8.2
 
-python3 -c "import strawberry; print(f'Strawberry GraphQL: {strawberry.__version__}')"
+python3 -c "import strawberry; from importlib.metadata import version; print(version('strawberry-graphql'))"
 log "=== deps.sh complete ==="
