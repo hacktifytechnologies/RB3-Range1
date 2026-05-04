@@ -10,7 +10,7 @@ from flask import (Flask, request, jsonify, render_template_string,
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import padding as asym_padding
 from cryptography.hazmat.backends import default_backend
-import sqlite3, hashlib, logging, os, json, base64, hmac, time, functools
+import sqlite3, hashlib, logging, os, json, base64, hmac, time, functools, sys
 
 app = Flask(__name__)
 app.secret_key = os.urandom(32)
@@ -20,13 +20,12 @@ PRIV_KEY_PATH = os.environ.get('JWT_PRIVATE_KEY', '/etc/rpal/jwt/private.pem')
 PUB_KEY_PATH  = os.environ.get('JWT_PUBLIC_KEY',  '/etc/rpal/jwt/public.pem')
 PORT          = int(os.environ.get('PORT', 8443))
 JWT_ISSUER    = 'https://permit.rpal.in'
-LOG_DIR       = '/var/log/rpal/permit-portal'
-
-os.makedirs(LOG_DIR, exist_ok=True)
+# Logging goes to stderr — systemd/journald captures it.
+# No file I/O at module load time, so no permission issues on startup.
 logging.basicConfig(
-    filename=os.path.join(LOG_DIR, 'access.log'),
     level=logging.INFO,
-    format='%(asctime)s %(levelname)s %(message)s'
+    format='%(asctime)s %(levelname)s %(message)s',
+    stream=sys.stderr
 )
 
 with open(PRIV_KEY_PATH, 'rb') as _f:
