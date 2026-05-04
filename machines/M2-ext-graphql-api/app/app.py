@@ -3,38 +3,26 @@
 RPAL Exploration Data API — GraphQL Service
 M2 · ext-graphql-api · RNG-EXT-01 · SETU DVAAR · OPERATION DEEPSTRIKE
 
-VULNERABILITY: GraphQL Field Suggestion Enumeration + Missing AuthZ on batchQuery
-
-GraphQL introspection is disabled (standard security measure). However:
-1. Strawberry's field suggestion feature is NOT disabled — it hints at field names
-   when a query contains a typo. By systematically sending near-miss queries,
-   an attacker reconstructs the full schema without introspection.
-2. The `batchQuery` resolver was added by a developer for "performance" and was
-   never attached to the auth middleware. It bypasses all permission checks and
-   returns data from any resolver including systemAccounts and internalServices.
-
-This models a real pattern: GraphQL schema reconstruction via suggestion errors,
-followed by exploitation of an unprotected resolver (CWE-862: Missing Auth Check).
 """
 
 from flask import Flask, request, jsonify, render_template, make_response
 import strawberry
 from strawberry.flask.views import GraphQLView
-from strawberry.extensions import DisableIntrospection
+from strawberry.extensions import AddValidationRules
+from graphql import NoSchemaIntrospectionCustomRule
 from strawberry.types import Info
 from typing import Optional, List
-import sqlite3, hashlib, logging, os, json, functools, datetime, typing
+import sqlite3, hashlib, logging, sys, os, json, functools, datetime, typing
 
 app = Flask(__name__)
 DB_PATH  = os.environ.get('DB_PATH', '/var/lib/rpal/graphql-api/explore.db')
-LOG_DIR  = '/var/log/rpal/graphql-api'
 PORT     = int(os.environ.get('PORT', 4000))
 API_KEY  = os.environ.get('RPAL_API_KEY', 'RPAL-API-2024-XK9mP3nT8qRs')
 SVC_PASS = os.environ.get('RPAL_SVC_PASS', 'T@riff@Expl0re!24')
 
-os.makedirs(LOG_DIR, exist_ok=True)
-logging.basicConfig(filename=f'{LOG_DIR}/api.log', level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s')
+logging.basicConfig(level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    stream=sys.stderr)
 
 # ── Auth helpers ───────────────────────────────────────────────────────────────
 
@@ -241,7 +229,7 @@ class Query:
 
 schema = strawberry.Schema(
     query=Query,
-    extensions=[DisableIntrospection],   # Introspection disabled — but suggestions NOT disabled
+    extensions=[AddValidationRules([NoSchemaIntrospectionCustomRule])],  # Introspection disabled — but field suggestions NOT disabled
 )
 
 # ── Flask view with auth context injection ─────────────────────────────────────
