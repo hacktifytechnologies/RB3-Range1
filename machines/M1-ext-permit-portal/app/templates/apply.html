@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><title>New Application — RPAL</title>
+<style>*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a1628;color:#e8edf5;font-family:-apple-system,sans-serif}
+.topbar{background:#0f1e38;border-bottom:1px solid #1e3a5f;height:52px;
+  display:flex;align-items:center;padding:0 28px;justify-content:space-between}
+.tb-title{font-size:13px;font-weight:700}
+.logout{font-size:12px;color:#64748b;text-decoration:none}
+.main{max-width:760px;margin:0 auto;padding:32px}
+.title{font-size:20px;font-weight:700;margin-bottom:24px}
+.field{margin-bottom:18px}
+label{display:block;font-size:11px;font-weight:600;color:#64748b;
+  text-transform:uppercase;letter-spacing:.8px;margin-bottom:7px;font-family:monospace}
+input,select{width:100%;background:#0f1e38;border:1.5px solid #1e3a5f;border-radius:7px;
+  padding:11px 14px;font-size:14px;color:#e8edf5;outline:none;transition:.2s}
+input:focus,select:focus{border-color:#2d7aee}
+.btn{background:#1a56c4;color:#fff;border:none;border-radius:7px;padding:12px 28px;
+  font-size:14px;font-weight:600;cursor:pointer}
+</style></head><body>
+<div class="topbar">
+  <span class="tb-title">RPAL Permit Portal — New Application</span>
+  <a class="logout" href="/logout">Sign Out</a>
+</div>
+<div class="main">
+<div class="title">New Exploration Block Application</div>
+<form method="POST">
+<div class="field"><label>Block Name</label><input type="text" name="block_name" placeholder="e.g. KG-DWN-2024-05"></div>
+<div class="field"><label>Block Type</label><select name="block_type">
+  <option>Offshore Deepwater</option><option>Offshore Shallow</option><option>Onshore</option></select></div>
+<div class="field"><label>Basin</label><select name="basin">
+  <option>Krishna-Godavari Basin</option><option>Mumbai Offshore Basin</option>
+  <option>Rajasthan Basin</option><option>Assam-Arakan Basin</option><option>Cambay Basin</option></select></div>
+<div class="field"><label>Estimated Area (km²)</label><input type="number" name="area"></div>
+<button class="btn" type="submit">Submit Application</button>
+</form></div></body></html>

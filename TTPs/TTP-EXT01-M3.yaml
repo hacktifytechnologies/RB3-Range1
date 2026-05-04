@@ -1,0 +1,20 @@
+id: DEEPSTRIKE-EXT01-M3-XXE-SSRF-IMDS
+name: DEEPSTRIKE-Setup-M3-XXEtoSSRFtoIMDS
+description: >
+  Participant targets the RPAL Pipeline Tariff SOAP Gateway which processes XML using lxml with
+  resolve_entities=True and no_network=False. A crafted SOAP request embedding an XML external
+  entity declaration pointing to http://169.254.169.254/ causes the server to fetch the cloud
+  instance metadata service on the attacker behalf. The IMDS returns IAM role credentials for
+  rpal-upstream-api-role which are reflected in the SOAP fault response body, granting access
+  to the internal API gateway admin endpoint on M4.
+tactic: initial-access
+technique_id: T1190
+technique_name: Exploit Public-Facing Application
+sub_technique: "None"
+tag: "range"
+executors:
+  - name: sh
+    platform: linux
+    command: chmod +x /opt/rpal/tariff-gateway/app/app.py && chown -R rpal-tariff:rpal-tariff /opt/rpal/tariff-gateway && ip addr add 169.254.169.254/32 dev lo 2>/dev/null; iptables -t nat -A OUTPUT -d 169.254.169.254 -p tcp --dport 80 -j REDIRECT --to-port 8080 2>/dev/null; systemctl enable rpal-tariff-gateway --now
+    payloads: []
+    parsers: []

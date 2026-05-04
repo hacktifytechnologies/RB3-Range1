@@ -1,0 +1,20 @@
+id: DEEPSTRIKE-EXT01-M1-JWT-CONFUSION
+name: DEEPSTRIKE-Setup-M1-JWTAlgorithmConfusion
+description: >
+  Participant is presented with the RPAL Exploration Permit Portal running PyJWT 1.7.1.
+  The service exposes a JWKS endpoint at /.well-known/jwks.json leaking the RSA-2048 public key.
+  The JWT verification accepts both RS256 and HS256 algorithms, allowing an attacker to forge
+  an admin token by signing a crafted payload with the public key bytes used as an HMAC secret.
+  Exploiting this grants access to /api/v1/admin/system-config which reveals downstream
+  GraphQL service credentials required to progress to M2.
+tactic: initial-access
+technique_id: T1190
+technique_name: Exploit Public-Facing Application
+sub_technique: "None"
+tag: "range"
+executors:
+  - name: sh
+    platform: linux
+    command: chmod +x /opt/rpal/permit-portal/app/app.py && chown -R rpal-permit:rpal-permit /opt/rpal/permit-portal && systemctl enable rpal-permit-portal --now && chmod 644 /etc/rpal/jwt/public.pem
+    payloads: []
+    parsers: []

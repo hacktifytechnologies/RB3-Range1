@@ -1,0 +1,20 @@
+id: DEEPSTRIKE-EXT01-M2-GRAPHQL-AUTHZ-BYPASS
+name: DEEPSTRIKE-Setup-M2-GraphQLBatchQueryAuthzBypass
+description: >
+  Participant targets the RPAL Exploration Data GraphQL API running Strawberry 0.219.2 with
+  introspection disabled. The service exposes field suggestion errors that leak real field names,
+  allowing schema reconstruction without introspection. The batchQuery resolver was added without
+  the require_auth decorator, creating an unauthenticated path to query systemAccounts and
+  internalServices tables. Exploiting this reveals plaintext service account credentials
+  including the SOAP gateway password needed to progress to M3.
+tactic: initial-access
+technique_id: T1190
+technique_name: Exploit Public-Facing Application
+sub_technique: "None"
+tag: "range"
+executors:
+  - name: sh
+    platform: linux
+    command: chmod +x /opt/rpal/graphql-api/app/app.py && chown -R rpal-graphql:rpal-graphql /opt/rpal/graphql-api && systemctl enable rpal-exploration-api --now && chmod 640 /var/lib/rpal/graphql-api/explore.db
+    payloads: []
+    parsers: []

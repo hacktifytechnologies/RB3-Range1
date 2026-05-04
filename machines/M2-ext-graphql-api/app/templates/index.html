@@ -1,0 +1,29 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<title>RPAL Exploration Data API</title>
+<style>*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a1628;color:#e8edf5;font-family:-apple-system,sans-serif;min-height:100vh;padding:48px}
+.header{margin-bottom:32px}.title{font-size:24px;font-weight:800;color:#e8edf5;margin-bottom:6px}
+.sub{font-family:monospace;font-size:12px;color:#64748b}
+.card{background:#0f1e38;border:1px solid #1e3a5f;border-radius:10px;padding:24px;margin-bottom:16px}
+.card-title{font-size:13px;font-weight:700;color:#5ba3f5;margin-bottom:8px}
+.card-body{font-size:13px;color:#94a3b8;line-height:1.6}
+code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12px}
+.endpoint{font-family:monospace;font-size:13px;color:#5ba3f5}</style></head>
+<body><div class="header">
+<div class="title">RPAL Exploration Data GraphQL API</div>
+<div class="sub">explore-api.rpal.in · URJA DRISHTI 2.0 · v3.2.1</div></div>
+<div class="card"><div class="card-title">Endpoint</div>
+<div class="card-body">GraphQL: <span class="endpoint">POST /graphql</span><br>
+Authentication: <code>X-API-Key</code> header required for most queries.<br>
+Status: <a href="/api/status" style="color:#5ba3f5">/api/status</a></div></div>
+<div class="card"><div class="card-title">Available Query Types (Authenticated)</div>
+<div class="card-body">
+<code>wellLogs(blockName: String): [WellLog]</code><br>
+<code>explorationBlocks(basin: String): [ExplorationBlock]</code><br>
+<code>employees(department: String): [Employee]</code>
+</div></div>
+<div class="card"><div class="card-title">Note</div>
+<div class="card-body">GraphQL introspection is disabled. For API documentation,
+contact <a href="mailto:devops@rpal.in" style="color:#5ba3f5">devops@rpal.in</a> or visit the
+internal docs at <a href="https://intranet.rpal.in/docs/graphql-api" style="color:#5ba3f5">intranet.rpal.in</a>.</div></div>
+</body></html>

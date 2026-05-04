@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dashboard — RPAL Permit Portal</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#0a1628;--navy2:#0f1e38;--navy3:#162444;--surface:#13203a;
+  --blue:#1a56c4;--blue2:#2d7aee;--blue3:#5ba3f5;
+  --gold:#c9922a;--gold2:#e8a830;
+  --green:#16a34a;--amber:#d97706;--red:#dc2626;
+  --text:#e8edf5;--text2:#94a3b8;--text3:#64748b;
+  --border:#1e3a5f;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Arial,sans-serif;
+  --mono:"SF Mono","Cascadia Code","Fira Mono",Consolas,"Liberation Mono",monospace;
+}
+body{background:var(--navy);color:var(--text);font-family:var(--sans);min-height:100vh;-webkit-font-smoothing:antialiased}
+
+.topbar{
+  background:var(--navy2);border-bottom:1px solid var(--border);
+  height:56px;display:flex;align-items:center;justify-content:space-between;
+  padding:0 28px;position:sticky;top:0;z-index:100;
+}
+.topbar-left{display:flex;align-items:center;gap:12px}
+.tb-logo{width:30px;height:30px;border:2px solid var(--gold);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--gold)}
+.tb-title{font-size:13px;font-weight:700;color:var(--text)}
+.tb-sub{font-family:var(--mono);font-size:10px;color:var(--text3)}
+.topbar-right{display:flex;align-items:center;gap:16px}
+.user-pill{
+  font-family:var(--mono);font-size:11px;color:var(--text2);
+  background:rgba(255,255,255,.04);border:1px solid var(--border);
+  padding:4px 12px;border-radius:20px;
+}
+.role-badge{
+  font-family:var(--mono);font-size:10px;
+  padding:3px 9px;border-radius:4px;font-weight:600;
+}
+.role-admin{background:rgba(220,38,38,.15);color:#f87171;border:1px solid rgba(220,38,38,.3)}
+.role-officer{background:rgba(26,86,196,.15);color:var(--blue3);border:1px solid rgba(26,86,196,.3)}
+.role-applicant{background:rgba(22,163,74,.12);color:#4ade80;border:1px solid rgba(22,163,74,.25)}
+.role-staff{background:rgba(201,146,42,.12);color:var(--gold2);border:1px solid rgba(201,146,42,.25)}
+.logout-link{font-size:12px;color:var(--text3);text-decoration:none}
+.logout-link:hover{color:var(--text)}
+
+.layout{display:flex;min-height:calc(100vh - 56px)}
+
+.sidebar{
+  width:220px;background:var(--navy2);border-right:1px solid var(--border);
+  padding:20px 0;flex-shrink:0;
+}
+.nav-section{
+  font-family:var(--mono);font-size:9px;font-weight:700;color:var(--text3);
+  text-transform:uppercase;letter-spacing:1.2px;padding:0 18px 8px;margin-top:16px;
+}
+.nav-item{
+  display:flex;align-items:center;gap:8px;padding:9px 18px;
+  font-size:13px;color:var(--text2);border-left:3px solid transparent;
+  cursor:pointer;transition:all .15s;text-decoration:none;
+}
+.nav-item:hover{color:var(--text);background:rgba(255,255,255,.03);border-left-color:var(--blue2)}
+.nav-item.active{color:var(--blue3);background:rgba(45,122,238,.08);border-left-color:var(--blue2)}
+.nav-icon{font-size:14px;min-width:18px}
+
+.main{flex:1;padding:28px;overflow-y:auto}
+
+.page-hd{margin-bottom:24px}
+.page-title{font-size:20px;font-weight:700;color:var(--text);margin-bottom:4px}
+.page-sub{font-family:var(--mono);font-size:11px;color:var(--text3)}
+
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px}
+.stat-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:8px;
+  padding:18px 20px;position:relative;overflow:hidden;
+}
+.stat-card::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--blue) 0%,transparent 100%)}
+.stat-label{font-family:var(--mono);font-size:10px;color:var(--text3);
+  text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.stat-value{font-size:26px;font-weight:700;color:var(--text);line-height:1}
+.stat-sub{font-size:11px;color:var(--text3);margin-top:4px}
+
+.table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.table-hd{
+  padding:14px 20px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.table-title{font-size:13px;font-weight:600;color:var(--text)}
+.table-count{font-family:var(--mono);font-size:11px;color:var(--text3)}
+table{width:100%;border-collapse:collapse}
+th{
+  font-family:var(--mono);font-size:10px;color:var(--text3);
+  text-transform:uppercase;letter-spacing:.8px;
+  padding:11px 20px;text-align:left;background:rgba(255,255,255,.02);
+  border-bottom:1px solid var(--border);
+}
+tr{border-bottom:1px solid rgba(30,58,95,.4)}
+tr:last-child{border-bottom:none}
+tr:hover{background:rgba(255,255,255,.02)}
+td{padding:13px 20px;font-size:13px;font-family:var(--mono)}
+.permit-number{color:var(--blue3);font-weight:500}
+.block-name{color:var(--text)}
+.basin-cell{color:var(--text2)}
+.area-cell{color:var(--text2)}
+.status-badge{display:inline-block;font-size:10px;font-weight:700;
+  padding:3px 9px;border-radius:4px;letter-spacing:.3px}
+.status-approved{background:rgba(22,163,74,.15);color:#4ade80;border:1px solid rgba(22,163,74,.3)}
+.status-pending{background:rgba(217,119,6,.12);color:#fbbf24;border:1px solid rgba(217,119,6,.3)}
+.status-under-review{background:rgba(45,122,238,.12);color:var(--blue3);border:1px solid rgba(45,122,238,.3)}
+
+.admin-notice{
+  background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.2);
+  border-left:3px solid var(--red);
+  border-radius:6px;padding:14px 18px;margin-bottom:20px;
+  font-size:12px;color:#f87171;font-family:var(--mono);line-height:1.6;
+}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="tb-logo">⊕</div>
+    <div>
+      <div class="tb-title">RPAL Permit Portal</div>
+      <div class="tb-sub">permit.rpal.in · URJA DRISHTI 2.0</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <span class="user-pill">{{ claims.sub }}</span>
+    <span class="role-badge role-{{ claims.role }}">{{ claims.role|upper }}</span>
+    <a class="logout-link" href="/logout">Sign Out</a>
+  </div>
+</div>
+
+<div class="layout">
+  <nav class="sidebar">
+    <div class="nav-section">Navigation</div>
+    <a class="nav-item active" href="/dashboard"><span class="nav-icon">🏠</span>Dashboard</a>
+    <a class="nav-item" href="/permits"><span class="nav-icon">📋</span>My Permits</a>
+    <a class="nav-item" href="/apply"><span class="nav-icon">➕</span>New Application</a>
+
+    {% if claims.role in ['admin', 'permit-officer', 'staff'] %}
+    <div class="nav-section">Administration</div>
+    <a class="nav-item" href="/dashboard"><span class="nav-icon">👥</span>All Permits</a>
+    <a class="nav-item" href="/api/v1/admin/users"><span class="nav-icon">🔐</span>User Management</a>
+    {% endif %}
+
+    {% if claims.role == 'admin' %}
+    <div class="nav-section">System</div>
+    <a class="nav-item" href="/api/v1/admin/system-config"><span class="nav-icon">⚙</span>System Config</a>
+    <a class="nav-item" href="/api/v1/admin/audit"><span class="nav-icon">📊</span>Audit Log</a>
+    {% endif %}
+
+    <div class="nav-section">Support</div>
+    <a class="nav-item" href="#"><span class="nav-icon">❓</span>Help</a>
+    <a class="nav-item" href="#"><span class="nav-icon">📞</span>Contact DGH</a>
+  </nav>
+
+  <main class="main">
+    <div class="page-hd">
+      <div class="page-title">Permit Dashboard</div>
+      <div class="page-sub">Exploration blocks, PMLs, and licensing status · {{ claims.sub }}</div>
+    </div>
+
+    {% if claims.role == 'admin' %}
+    <div class="admin-notice">
+      🔑 ADMIN ACCESS ACTIVE — System configuration and audit trails accessible via sidebar.
+      All admin actions are logged and audited per RPAL IT Security Policy 2024.
+    </div>
+    {% endif %}
+
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-label">Total Permits</div>
+        <div class="stat-value">{{ permits|length }}</div>
+        <div class="stat-sub">All blocks</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Approved</div>
+        <div class="stat-value">{{ permits|selectattr('status','eq','approved')|list|length }}</div>
+        <div class="stat-sub">Active PMLs</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Under Review</div>
+        <div class="stat-value">{{ permits|selectattr('status','eq','under-review')|list|length }}</div>
+        <div class="stat-sub">DGH review</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Pending</div>
+        <div class="stat-value">{{ permits|selectattr('status','eq','pending')|list|length }}</div>
+        <div class="stat-sub">Awaiting submission</div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-hd">
+        <span class="table-title">Exploration Permits &amp; Block Allocations</span>
+        <span class="table-count">{{ permits|length }} records</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Permit No.</th>
+            <th>Block Name</th>
+            <th>Type</th>
+            <th>Basin</th>
+            <th>Area (km²)</th>
+            <th>Submitted</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in permits %}
+          <tr>
+            <td class="permit-number">{{ p['permit_number'] }}</td>
+            <td class="block-name">{{ p['block_name'] }}</td>
+            <td style="color:var(--text2);font-size:11px">{{ p['block_type'] }}</td>
+            <td class="basin-cell">{{ p['basin'] }}</td>
+            <td class="area-cell">{{ p['area_sqkm'] }}</td>
+            <td style="color:var(--text3)">{{ p['submitted_at'][:10] }}</td>
+            <td>
+              <span class="status-badge status-{{ p['status'] }}">
+                {{ p['status']|upper|replace('-',' ') }}
+              </span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+</body>
+</html>

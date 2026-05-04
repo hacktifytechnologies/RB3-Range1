@@ -1,0 +1,20 @@
+id: DEEPSTRIKE-EXT01-M4-HTTP-SMUGGLING-CLTE
+name: DEEPSTRIKE-Setup-M4-HTTPRequestSmugglingCLTE
+description: >
+  Participant targets the RPAL API Gateway running HAProxy in front of a Gunicorn backend.
+  HAProxy honours Content-Length while Gunicorn processes Transfer-Encoding chunked, creating
+  a CL.TE desync condition. A smuggled request prefix poisons the next request from the internal
+  rpal-apigw-monitor daemon which probes every ten seconds with a privileged Bearer token.
+  The captured token grants access to /api/v2/admin/export which returns LDAP bind credentials
+  and the SSH pivot key details needed to enter Range 2.
+tactic: credential-access
+technique_id: T1557
+technique_name: Adversary-in-the-Middle
+sub_technique: "None"
+tag: "range"
+executors:
+  - name: sh
+    platform: linux
+    command: chmod +x /opt/rpal/api-backend/app/app.py && chown -R rpal-apigw:rpal-apigw /opt/rpal/api-backend && systemctl enable rpal-api-backend rpal-apigw-monitor --now && chmod 644 /etc/haproxy/haproxy.cfg
+    payloads: []
+    parsers: []
