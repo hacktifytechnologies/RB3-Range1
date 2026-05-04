@@ -22,12 +22,10 @@ import requests, time, logging, os, hashlib, random, datetime, signal, sys
 GATEWAY_URL    = os.environ.get('RPAL_GATEWAY_URL',  'http://127.0.0.1:80')
 BACKEND_URL    = os.environ.get('RPAL_BACKEND_URL',  'http://127.0.0.1:8000')
 PROBE_INTERVAL = int(os.environ.get('PROBE_INTERVAL', '10'))   # seconds
-LOG_DIR        = '/var/log/rpal/apigw-monitor'
 
-os.makedirs(LOG_DIR, exist_ok=True)
 logging.basicConfig(
-    filename=f'{LOG_DIR}/monitor.log',
     level=logging.INFO,
+    stream=sys.stderr,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
 )
 log = logging.getLogger('rpal-apigw-monitor')
