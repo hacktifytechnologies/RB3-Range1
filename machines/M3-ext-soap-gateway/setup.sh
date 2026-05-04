@@ -20,9 +20,9 @@ log "Challenge: XXE → SSRF → Instance Metadata Service credential extraction
 
 id "$APP_USER" &>/dev/null || useradd -r -s /bin/false -d "$APP_DIR" \
     -c "RPAL Pipeline Tariff Gateway" "$APP_USER"
-mkdir -p "$APP_DIR/app" "$LOG_DIR"
+mkdir -p "$APP_DIR/app"
 cp -r "${SCRIPT_DIR}/app/"* "$APP_DIR/app/"
-chown -R "$APP_USER:$APP_USER" "$APP_DIR" "$LOG_DIR"
+chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 
 # ── IMDS routing — redirect 169.254.169.254:80 to local app ──────────────────
 log "Configuring IMDS simulation routing..."
@@ -57,8 +57,8 @@ WorkingDirectory=${APP_DIR}/app
 ExecStart=/usr/bin/python3 ${APP_DIR}/app/app.py
 Restart=always
 RestartSec=5
-StandardOutput=append:${LOG_DIR}/gateway.log
-StandardError=append:${LOG_DIR}/error.log
+StandardOutput=journal
+StandardError=journal
 SyslogIdentifier=rpal-tariff-gateway
 Environment=PORT=8080
 AmbientCapabilities=CAP_NET_BIND_SERVICE
