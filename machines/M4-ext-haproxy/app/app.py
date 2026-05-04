@@ -18,14 +18,12 @@ corporate LDAP bind credentials.
 """
 
 from flask import Flask, request, jsonify, make_response, render_template
-import logging, os, hashlib, datetime, hmac, secrets, sqlite3, random
+import logging, os, hashlib, datetime, hmac, secrets, sqlite3, random, sys
 
 app = Flask(__name__)
-LOG_DIR = '/var/log/rpal/api-gateway'
-os.makedirs(LOG_DIR, exist_ok=True)
 logging.basicConfig(
-    filename=f'{LOG_DIR}/backend.log',
     level=logging.INFO,
+    stream=sys.stderr,
     format='%(asctime)s [%(levelname)s] %(message)s'
 )
 
