@@ -27,17 +27,14 @@ log "OPERATION DEEPSTRIKE | SETU DVAAR | RNG-EXT-01"
 
 APP_DIR="/opt/rpal/api-gateway"
 APP_USER="rpal-gateway"
-LOG_DIR="/var/log/rpal"
-MONITOR_LOG_DIR="/var/log/rpal/apigw-monitor"
-BACKEND_LOG_DIR="/var/log/rpal/api-gateway"
 
 # ── Users ──────────────────────────────────────────────────────────────────────
 log "Creating service users..."
 id "$APP_USER" &>/dev/null || useradd -r -s /bin/false -d "$APP_DIR" \
     -c "RPAL API Gateway Service" "$APP_USER"
 
-mkdir -p "$APP_DIR/app" "$MONITOR_LOG_DIR" "$BACKEND_LOG_DIR"
-chown -R "$APP_USER:$APP_USER" "$APP_DIR" "$MONITOR_LOG_DIR" "$BACKEND_LOG_DIR"
+mkdir -p "$APP_DIR/app" 
+chown -R "$APP_USER:$APP_USER" "$APP_DIR" 
 
 # ── Copy application files ─────────────────────────────────────────────────────
 log "Installing backend application files..."
@@ -67,13 +64,12 @@ ExecStart=/usr/local/bin/gunicorn \
     --workers 2 \
     --worker-class sync \
     --timeout 30 \
-    --access-logfile ${BACKEND_LOG_DIR}/access.log \
-    --error-logfile ${BACKEND_LOG_DIR}/error.log \
+    --access-logfile - \
+    --error-logfile - \
     --log-level info \
     app.app:app
 Restart=always
 RestartSec=5
-WorkingDirectory=${APP_DIR}/app
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=rpal-api-backend
@@ -120,8 +116,8 @@ WorkingDirectory=${APP_DIR}
 ExecStart=/usr/bin/python3 ${APP_DIR}/app/monitor.py
 Restart=always
 RestartSec=10
-StandardOutput=append:${MONITOR_LOG_DIR}/monitor.log
-StandardError=append:${MONITOR_LOG_DIR}/monitor.log
+StandardOutput=journal
+StandardError=journal
 SyslogIdentifier=rpal-apigw-monitor
 
 Environment=RPAL_GATEWAY_URL=http://127.0.0.1:80
