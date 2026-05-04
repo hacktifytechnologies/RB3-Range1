@@ -22,13 +22,12 @@ to RPAL's pipeline infrastructure — this SOAP service is the regulatory interf
 
 from flask import Flask, request, make_response
 from lxml import etree
-import requests, logging, os, json, hashlib, datetime, re
+import requests, logging, os, json, hashlib, datetime, re, sys
 
 app = Flask(__name__)
-LOG_DIR = '/var/log/rpal/soap-gateway'
-os.makedirs(LOG_DIR, exist_ok=True)
-logging.basicConfig(filename=f'{LOG_DIR}/gateway.log', level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s')
+logging.basicConfig(level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    stream=sys.stderr)
 
 # Service account for the SOAP gateway (obtained from M2 batchQuery)
 VALID_USER = 'rpal-tariff-svc'
@@ -276,11 +275,10 @@ def soap_endpoint():
 # Simulates the AWS/OpenStack instance metadata service at 169.254.169.254.
 # In a real OpenStack deployment this would be on the actual link-local address.
 # For the exercise, it runs on localhost and the XXE SSRF is directed here.
-# The setup.sh adds an iptables DNAT rule: 169.254.169.254:80 → 127.0.0.1:8080/imds/
+# The setup.sh adds an iptables DNAT rule: 169.254.169.254:80 → 127.0.0.1:8080
 
-@app.route('/imds/')
-@app.route('/imds/latest/')
-@app.route('/imds/latest/meta-data/')
+@app.route('/latest/')
+@app.route('/latest/meta-data/')
 def imds_root():
     return make_response("""ami-id
 ami-launch-index
@@ -305,15 +303,15 @@ reservation-id
 security-groups
 services/""", 200, {'Content-Type': 'text/plain'})
 
-@app.route('/imds/latest/meta-data/iam/')
+@app.route('/latest/meta-data/iam/')
 def imds_iam():
     return make_response("info\nsecurity-credentials/\n", 200, {'Content-Type': 'text/plain'})
 
-@app.route('/imds/latest/meta-data/iam/security-credentials/')
+@app.route('/latest/meta-data/iam/security-credentials/')
 def imds_iam_creds_list():
     return make_response("rpal-upstream-api-role\n", 200, {'Content-Type': 'text/plain'})
 
-@app.route('/imds/latest/meta-data/iam/security-credentials/rpal-upstream-api-role')
+@app.route('/latest/meta-data/iam/security-credentials/rpal-upstream-api-role')
 def imds_iam_creds():
     """
     The IAM role credentials returned by the IMDS.
@@ -340,7 +338,7 @@ def imds_iam_creds():
         "_rpal_endpoint":  "http://203.x.x.x:8000/api/v2/admin/export",
     }, indent=2), 200, {'Content-Type': 'application/json'})
 
-@app.route('/imds/latest/meta-data/instance-id')
+@app.route('/latest/meta-data/instance-id')
 def imds_instance_id():
     return make_response("i-rpal-soap-gw-001\n", 200, {'Content-Type': 'text/plain'})
 
