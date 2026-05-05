@@ -25,7 +25,6 @@
 
 const express = require('express');
 const path    = require('path');
-const fs      = require('fs');
 const crypto  = require('crypto');
 const ejs     = require('ejs');
 
@@ -35,7 +34,7 @@ const APP_ROOT = __dirname;
 
 // The admin token is set via environment (current code).
 // But an older git commit has it hardcoded — that's what the attacker finds.
-const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'RPAL-ADMIN-FALLBACK';
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
 
 // API key from M4 (used for regular authenticated access)
 const API_KEY = 'RPAL-CONTRACTOR-API-2024-xK9mP3nT8qRs7vL2';
@@ -188,10 +187,16 @@ app.get('/admin/export', requireAdmin, (req, res) => {
      * Admin export endpoint — returns the Range 2 pivot credentials.
      * Accessible only with ADMIN_TOKEN, which was hardcoded in an older
      * git commit and is recoverable from the exposed .git directory.
+     *
+     * The SSH key is injected via systemd Environment=SSH_KEY=... at runtime.
+     * It is NOT stored in a file readable by the service user or recoverable
+     * from the git history. The only way to get it is through this endpoint
+     * using the admin token found in the git history.
      */
-    const keyPath = process.env.SSH_KEY_PATH || '/etc/rpal/keys/svc-deploy-rsa';
-    let sshKey = '[SSH key not found — check setup.sh]';
-    try { sshKey = fs.readFileSync(keyPath, 'utf8').trim(); } catch (_) {}
+    // SSH_KEY is injected via systemd EnvironmentFile with literal \n sequences
+    // Convert them back to real newlines for proper PEM format
+    const rawKey = process.env.SSH_KEY || '[SSH key not configured — check setup.sh]';
+    const sshKey = rawKey.replace(/\\n/g, '\n');
 
     console.log(`ADMIN_EXPORT_ACCESS ip=${req.ip}`);
     res.json({
@@ -199,11 +204,11 @@ app.get('/admin/export', requireAdmin, (req, res) => {
         exported_at:  new Date().toISOString(),
         platform:     'RPAL URJA DRISHTI 2.0',
         pivot_target: {
-            description:  'Range 2 entry point — RPAL Corporate IT backbone',
-            host:         '203.x.x.128',
+            description:  'RPAL Corporate IT Backbone EntryPoint',
+            host:         '203.x.x.x',
             port:         22,
             user:         'svc-deploy',
-            passphrase:   'Deploy@SSH!RPAL24Corp',
+            passphrase:   process.env.SSH_PASSPHRASE || '[not configured]',
             ssh_key:      sshKey,
             note:         'SSH key for svc-deploy — grants access to RNG-EXT-02 PRAHARI KENDRA',
         },
