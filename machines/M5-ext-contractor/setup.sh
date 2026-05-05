@@ -32,8 +32,16 @@ log "Generating Range 2 pivot SSH key (svc-deploy)..."
 ssh-keygen -t rsa -b 2048 -f "${KEY_DIR}/svc-deploy-rsa" \
     -N "Deploy@SSH!RPAL24Corp" -C "svc-deploy@rpal.in" -q 2>/dev/null || true
 chmod 600 "${KEY_DIR}/svc-deploy-rsa"
-chown "root:${APP_USER}" "${KEY_DIR}/svc-deploy-rsa"
-log "SSH key: ${KEY_DIR}/svc-deploy-rsa (readable by ${APP_USER})"
+chown root:root "${KEY_DIR}/svc-deploy-rsa"
+log "SSH key: ${KEY_DIR}/svc-deploy-rsa (root-only 600 — not readable by service user)"
+
+# Write key as env var in a root-only EnvironmentFile — systemd injects it at start
+# The service user never has direct filesystem access to the key
+SSH_KEY_ESCAPED=$(sed ':a;N;$!ba;s/\n/\\n/g' "${KEY_DIR}/svc-deploy-rsa")
+printf 'SSH_KEY=%s\nSSH_PASSPHRASE=Deploy@SSH!RPAL24Corp\n' "$SSH_KEY_ESCAPED" > "${KEY_DIR}/svc-deploy-env"
+chmod 600 "${KEY_DIR}/svc-deploy-env"
+chown root:root "${KEY_DIR}/svc-deploy-env"
+log "SSH_KEY injected via EnvironmentFile (root-only)"
 
 # ── Install app and create git history ────────────────────────────────────────
 mkdir -p "$APP_DIR/app"
@@ -49,12 +57,17 @@ git config --global user.name  "Arjun Mehta" 2>/dev/null || true
 log "Initialising git repository with sensitive history..."
 
 # ── Create git history ─────────────────────────────────────────────────────────
+# IMPORTANT: git repo lives inside APP_DIR/app — files tracked as app.js (not app/app.js)
+git config --global --add safe.directory "$APP_DIR/app"
 git init -q "$APP_DIR/app" 2>/dev/null || true
 cd "$APP_DIR/app"
 
-# ── COMMIT 1: Initial commit with hardcoded admin token ───────────────────────
-# Write a version of app.js that has the token hardcoded
-cat > /tmp/app_v1.js << APPEOF
+# Back up the real app.js (the secure current version)
+cp app.js /tmp/app_current.js
+
+# ── COMMIT 1: Write vulnerable v1 and commit it ───────────────────────────────
+# This is the commit participants find — it has the token hardcoded
+cat > app.js << APPEOF
 'use strict';
 // RPAL Contractor Registration System v1.0
 // TODO: move ADMIN_TOKEN to environment variable before production deploy
@@ -65,10 +78,8 @@ const API_KEY     = 'RPAL-CONTRACTOR-API-2024-xK9mP3nT8qRs7vL2';
 console.log('RPAL Contractor Portal initialising...');
 APPEOF
 
-git add . 2>/dev/null || true
-# Stash current app.js temporarily for the fake commit
-cp app.js /tmp/app_current.js
-cp /tmp/app_v1.js app.js
+# Stage the vulnerable v1 app.js and commit
+git add app.js package.json 2>/dev/null || git add . 2>/dev/null || true
 
 GIT_AUTHOR_DATE="2024-09-15T09:00:00+05:30" \
 GIT_COMMITTER_DATE="2024-09-15T09:00:00+05:30" \
@@ -77,27 +88,22 @@ git commit -q -m "Initial commit — RPAL Contractor Registration System v1.0
 - Express + EJS setup
 - Contractor registration endpoint
 - Admin export endpoint with static credentials
-- TODO: Jira DEVOPS-1041 — move ADMIN_TOKEN to env before go-live" 2>/dev/null || true
+- TODO: Jira DEVOPS-1041 — move ADMIN_TOKEN to env before go-live" || true
 
-# ── COMMIT 2: Dependency update ───────────────────────────────────────────────
-GIT_AUTHOR_DATE="2024-10-01T11:30:00+05:30" \
-GIT_COMMITTER_DATE="2024-10-01T11:30:00+05:30" \
-git commit -q -m "chore: update npm dependencies to latest" --allow-empty 2>/dev/null || true
-
-# ── COMMIT 3: Remove hardcoded token (current code) ──────────────────────────
-# Restore the real app.js
+# ── COMMIT 2: Replace with secure app.js ──────────────────────────────────────
 cp /tmp/app_current.js app.js
+git add app.js 2>/dev/null || true
 
 GIT_AUTHOR_DATE="2024-10-15T14:20:00+05:30" \
 GIT_COMMITTER_DATE="2024-10-15T14:20:00+05:30" \
-git commit -q -a -m "security: move ADMIN_TOKEN to environment variable
+git commit -q -m "security: move ADMIN_TOKEN to environment variable
 
 Jira DEVOPS-1041 — ADMIN_TOKEN was hardcoded in source code.
 Moved to systemd Environment= directive as per security review.
-API_KEY unchanged (rotated separately)." 2>/dev/null || true
+API_KEY unchanged (rotated separately)." || true
 
-log "Git history created: 3 commits"
-git log --oneline 2>/dev/null | head -5
+log "Git history created: 2 commits"
+git log --oneline
 
 # ── systemd service ────────────────────────────────────────────────────────────
 cat > "/etc/systemd/system/${SVC}.service" << SVCEOF
@@ -116,7 +122,7 @@ StandardError=journal
 SyslogIdentifier=${SVC}
 Environment=PORT=4000
 Environment=ADMIN_TOKEN=${ADMIN_TOKEN}
-Environment=SSH_KEY_PATH=${KEY_DIR}/svc-deploy-rsa
+EnvironmentFile=${KEY_DIR}/svc-deploy-env
 [Install]
 WantedBy=multi-user.target
 SVCEOF
