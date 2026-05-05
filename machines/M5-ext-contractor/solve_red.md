@@ -59,9 +59,9 @@ git log --oneline
 #   ghi9012 Initial commit — RPAL Contractor Registration System v1.0
 
 # Check the initial commit — this is where the token was hardcoded
-git show ghi9012:app/app.js | grep -i "admin_token\|token\|secret\|password"
+git show ghi9012:app.js | grep -i "admin_token\|token\|secret\|password"
 # OR: show the diff that removed it
-git diff ghi9012..abc1234 -- app/app.js | grep "ADMIN_TOKEN"
+git diff ghi9012..abc1234 -- app.js | grep "ADMIN_TOKEN"
 ```
 
 **Expected output:**
