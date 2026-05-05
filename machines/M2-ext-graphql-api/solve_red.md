@@ -296,6 +296,8 @@ for result in results:
                 print(f"    Username:  {acct['username']}")
                 print(f"    Password:  {acct['plaintext_password']}")
 ```
+<img width="1167" height="968" alt="image" src="https://github.com/user-attachments/assets/fef72d30-87b1-4597-94dd-54bc8927eca0" />
+
 
 ---
 
