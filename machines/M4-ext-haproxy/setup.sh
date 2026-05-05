@@ -32,6 +32,10 @@ npm install --prefer-offline -q 2>/dev/null || npm install -q
 chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 
 # ── Plant M5 API key (the SSTI flag) ──────────────────────────────────────────
+# Directory must be executable by service user so it can read files inside
+chown "root:${APP_USER}" "$FLAG_DIR"
+chmod 750 "$FLAG_DIR"
+
 cat > "$FLAG_DIR/api-key.txt" << 'KEYEOF'
 # RPAL Contractor Registration System — API Access Key
 # Generated: 2024-10-01 | Owner: arjun.mehta@rpal.in
