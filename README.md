@@ -2,95 +2,56 @@
 ## OPERATION DEEPSTRIKE — External Portal Zone
 ### Rashtriya Petroleum Anveshan Limited (RPAL) — URJA DRISHTI 2.0 Platform
 
----
-
-**Range:** RNG-EXT-01 · SETU DVAAR (The Gateway)
-**Zone:** v-Public — `203.0.0.0/8` — Subnet: `203.x.x.x/24`
-**Entry Point:** External internet-facing systems (initial access vector)
-**Pivot To:** RNG-EXT-02 (`203.x.x.x`) via SSH key + LDAP credentials extracted from M5
-
----
+**Range:** RNG-EXT-01 · SETU DVAAR | **Zone:** v-Public 203.x.x.x/24
+**Pivot To:** RNG-EXT-02 via SSH key from M5 /admin/export
 
 ## Machine Manifest
 
-| # | Slug | Service | Port | Vulnerability Class | Difficulty |
+| # | Slug | Service | Port | Vulnerability | Difficulty |
 |---|---|---|---|---|---|
-| M1 | ext-permit-portal | RPAL Exploration Permit Portal | 443/8443 | JWT Algorithm Confusion (RS256→HS256) | Hard |
-| M2 | ext-graphql-api | RPAL Exploration Data API | 4000 | GraphQL Field Suggestion + Missing AuthZ on batchQuery | Hard |
-| M3 | ext-soap-gateway | RPAL Pipeline Tariff SOAP Gateway | 8080 | XXE → SSRF → Internal IMDS Token Extraction | Extreme |
-| M4 | ext-haproxy | RPAL API Gateway (HAProxy) | 80/8000 | HTTP Request Smuggling (CL.TE) — Session Hijack | Extreme |
-| M5 | ext-contractor | RPAL Contractor Onboarding Portal | 9000 | wkhtmltopdf SSRF → Config File Read → Pivot Credentials | Hard |
+| M1 | ext-permit-portal | RPAL Exploration Permit Portal | 8443 | JWT Algorithm Confusion RS256→HS256 | Hard |
+| M2 | ext-graphql-api | RPAL Exploration Data API | 4000 | GraphQL Field Suggestion + batchQuery AuthZ Bypass | Hard |
+| M3 | ext-soap-gateway | RPAL Pipeline Tariff SOAP Gateway | 8080 | XXE → SSRF → IMDS Credential Extraction | Extreme |
+| M4 | ext-survey-portal | RPAL Geological Survey Analytics Portal | 3000 | EJS Server-Side Template Injection → RCE | Medium |
+| M5 | ext-contractor-portal | RPAL Contractor Registration System | 4000 | Exposed .git → Hardcoded Token → SSH Key | Medium |
 
----
-
-## Credential / Access Chain
+## Credential Chain
 
 ```
-[External Internet] → M1 Permit Portal
-  JWT Algorithm Confusion → admin token
-  → /api/v1/admin/system-config → GraphQL API credentials
-    (graphql_user: rpal-explore-svc / T@riff@Expl0re!24)
-
-M2 GraphQL API (port 4000)
-  batchQuery AuthZ bypass → internal employee enumeration
-  → svc-upstream-api credentials extracted
-    (X-API-Key: RPAL-API-2024-XK9mP3nT8qRs)
-
-M3 SOAP Gateway (port 8080)
-  XXE → SSRF → http://169.254.169.254/latest/meta-data/...
-  → IAM role credentials (AccessKeyId, SecretAccessKey, Token)
-  → Valid for internal API gateway at 203.x.x.x:8000
-
-M4 HAProxy Gateway (port 80)
-  HTTP Request Smuggling → capture victim session token
-  → rpal-permit-officer session → /api/v2/admin/export
-  → Corporate LDAP bind credential extracted
-
-M5 Contractor Portal (port 9000)
-  wkhtmltopdf SSRF → file:///etc/rpal/upstream/config.ini
-  → SSH private key path + LDAP credentials for RNG-EXT-02
-  → PIVOT: devops@203.x.x.x (corporate IT backbone)
+M1 → JWT admin → graphql_api_key: RPAL-API-2024-XK9mP3nT8qRs
+M2 → batchQuery bypass → rpal-tariff-svc / TariffGW@Soap!2024#RPAL
+M3 → XXE SSRF IMDS → AccessKeyId + 64-char Token → endpoint :3000
+M4 → IMDS login → EJS SSTI RCE → RPAL-CONTRACTOR-API-2024-xK9mP3nT8qRs7vL2
+M5 → .git dump → RPAL-ADMIN-TOKEN-2024-9c4e2a8f1b7d3e6a → SSH key → RNG-EXT-02
 ```
 
----
-
-## Setup Instructions
-
-Each machine is a standalone Ubuntu 22.04 OpenStack VM. Deploy in order M1 → M5:
+## Setup
 
 ```bash
-# On each VM:
-sudo bash machines/MX-ext-<slug>/deps.sh     # internet required
-sudo bash machines/MX-ext-<slug>/setup.sh    # no internet required
-sudo bash Honeytraps/MX-ext-<slug>.sh        # deploy decoy services
+sudo bash machines/MX-ext-<slug>/deps.sh
+sudo bash machines/MX-ext-<slug>/setup.sh
+sudo bash Honeytraps/MX-ext-<slug>.sh
 ```
 
----
+M1-M3: Python 3.10 + Flask. M4-M5: Node.js + Express.
 
-## Kill Chain Coverage (Lockheed Martin)
+## Technology Stack
 
-| Phase | Machine | Activity |
-|---|---|---|
-| Reconnaissance | M1 | JWKS endpoint enumeration, JWT structure analysis |
-| Weaponisation | M1 | RSA public key extraction → HS256 secret derivation |
-| Delivery | M2 | GraphQL schema reconstruction via suggestions |
-| Exploitation | M3 | XXE payload → SSRF → cloud metadata extraction |
-| Installation | M4 | Request smuggling → session token capture → admin access |
-| C2 | M4→M5 | LDAP credential extraction → contractor portal pivot |
-| Actions on Objectives | M5 | Config file SSRF → SSH key exfil → corporate zone entry |
-
----
+| Machine | Runtime | Key Dependency | Vulnerability Mechanism |
+|---|---|---|---|
+| M1 | Python 3.10 | cryptography==41.0.7 | Manual JWT — HS256 uses PUBLIC_KEY_PEM as HMAC secret |
+| M2 | Python 3.10 | strawberry-graphql==0.219.2 | batchQuery resolver missing @require_auth |
+| M3 | Python 3.10 | lxml | resolve_entities=True, no_network=False |
+| M4 | Node.js | ejs==3.1.9 | ejs.render(user_template, data) — user controls template |
+| M5 | Node.js | express.static | dotfiles:'allow' exposes .git directory over HTTP |
 
 ## Key Personas
 
-| Character | Role | Relevance |
+| Character | Role | Machine |
 |---|---|---|
-| Vikram Nair | IT Infrastructure Head | Introduced JWT algorithm confusion during rushed deployment |
-| Varuna-2 | NEEL TRISHUL Web Operator | Primary operator for this range |
-| Dr. Sunita Pillai | CISO | Blue team incident response anchor |
+| Arjun Mehta | DevOps Engineer | M5 git history, M4 credential file |
+| Kavita Rao | Geological Survey Lead | M4 service account |
+| Vikram Nair | IT Infrastructure Head | M1 rushed deployment |
+| Dr. Sunita Pillai | CISO | Blue team anchor |
 
----
-
-*RNG-EXT-01 · SETU DVAAR · OPERATION DEEPSTRIKE*
-*Classification: RESTRICTED — Exercise Staff Only*
-*Rashtriya Petroleum Anveshan Limited URJA DRISHTI 2.0 | © 2026 Hacktify Cybersecurity*
+*RNG-EXT-01 · SETU DVAAR · OPERATION DEEPSTRIKE | © 2026 Hacktify Cybersecurity*
