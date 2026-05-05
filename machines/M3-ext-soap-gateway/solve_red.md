@@ -284,6 +284,7 @@ if m:
 else:
     print(f"[-] Credential extraction failed. Raw response:\n{resp[:500]}") 
 ```
+<img width="1176" height="597" alt="image" src="https://github.com/user-attachments/assets/1e0596ae-75d3-4723-98b2-0147cc2ec26c" />
 
 ---
 
