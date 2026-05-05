@@ -482,7 +482,7 @@ print("\n[+] Exploitation complete. Proceed to M2.")
 python3 /tmp/jwt_confusion_exploit.py
 ```
 
-<img width="1103" height="537" alt="image" src="https://github.com/user-attachments/assets/410d5194-d328-4b5b-9b92-fa6f56c7e6b3" />
+<img width="2001" height="1021" alt="image" src="https://github.com/user-attachments/assets/581bd565-70a0-481a-b63f-923c8a811161" />
 
 
 ### 3.2 — Manual JWT Construction (No Python Required)
