@@ -100,6 +100,9 @@ Response:
 {"errors": [{"message": "Cannot query field 'wellLog'. Did you mean 'wellLogs'?"}]}
 ```
 
+<img width="1200" height="489" alt="image" src="https://github.com/user-attachments/assets/7af45fd8-e62e-4a4c-8ad4-2fd597af8188" />
+
+
 The server just told you the real field name is `wellLogs`. This technique scales: probe variations of suspected names to map the entire schema.
 
 ### 2.2 — Systematic Field Discovery
