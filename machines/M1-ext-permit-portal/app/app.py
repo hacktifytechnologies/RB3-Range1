@@ -2,8 +2,6 @@
 """
 RPAL Exploration Permit Portal
 RNG-EXT-01 SETU DVAAR OPERATION DEEPSTRIKE
-VULNERABILITY: JWT Algorithm Confusion (RS256 -> HS256)
-No PyJWT — JWT implemented manually. Avoids cryptography version issues entirely.
 """
 from flask import (Flask, request, jsonify, render_template_string,
                    redirect, url_for, make_response)
@@ -20,8 +18,7 @@ PRIV_KEY_PATH = os.environ.get('JWT_PRIVATE_KEY', '/etc/rpal/jwt/private.pem')
 PUB_KEY_PATH  = os.environ.get('JWT_PUBLIC_KEY',  '/etc/rpal/jwt/public.pem')
 PORT          = int(os.environ.get('PORT', 8443))
 JWT_ISSUER    = 'https://permit.rpal.in'
-# Logging goes to stderr — systemd/journald captures it.
-# No file I/O at module load time, so no permission issues on startup.
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s %(levelname)s %(message)s',
@@ -61,12 +58,6 @@ def issue_token(username, role):
     return _b64u_enc(hdr) + '.' + _b64u_enc(pay) + '.' + _b64u_enc(sig)
 
 def verify_token(token):
-    """
-    VULNERABILITY: accepts RS256 and HS256.
-    When alg=HS256, PUBLIC_KEY_PEM bytes are used as HMAC secret.
-    Attacker fetches public key from /.well-known/jwks.json, forges
-    a token signed with HS256 using that key, and passes verification.
-    """
     try:
         parts = token.split('.')
         if len(parts) != 3:
@@ -135,8 +126,6 @@ def get_jwk():
     n = PUBLIC_KEY.public_numbers()
     return {"kty":"RSA","use":"sig","kid":"rpal-permit-2024-v1","alg":"RS256",
             "n":_b64u_int(n.n),"e":_b64u_int(n.e)}
-
-# ── HTML (inline — no template files needed) ───────────────────────────────────
 
 _B = "background"; _C = "#0a1628"; _N2 = "#0f1e38"; _BL = "#1a56c4"; _GD = "#c9922a"
 _TX = "#e8edf5"; _T2 = "#94a3b8"; _T3 = "#64748b"; _BR = "#1e3a5f"
@@ -319,8 +308,6 @@ ERR_HTML = """<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>
 <div class="et">Error</div><div class="em">{{ msg }}</div>
 <a class="back" href="/">Return to Portal</a>
 </div></div></body></html>"""
-
-# ── Routes ─────────────────────────────────────────────────────────────────────
 
 @app.route('/')
 def index():
