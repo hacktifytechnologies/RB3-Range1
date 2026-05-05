@@ -72,6 +72,8 @@ curl -s -X POST http://203.x.x.x:4000/graphql \
   -H "X-API-Key: RPAL-API-2024-XK9mP3nT8qRs" \
   -d '{"query":"{ __schema { types { name } } }"}' | python3 -m json.tool
 ```
+<img width="1474" height="676" alt="image" src="https://github.com/user-attachments/assets/1a97a0d3-ce96-49e1-a5b4-adfd2f39eaa3" />
+
 
 Expected: `{"errors": [{"message": "GraphQL introspection has been disabled..."}]}`
 
