@@ -63,6 +63,9 @@ for op in root.iter('{http://schemas.xmlsoap.org/wsdl/}operation'):
 # Operation: CalculateTariff
 ```
 
+<img width="891" height="553" alt="image" src="https://github.com/user-attachments/assets/749ea3b2-6372-4ead-bac4-13a1df3db6d8" />
+
+
 **Why this matters:** The WSDL reveals the exact XML structure expected. A valid SOAP request must match this structure — the XXE payload must be embedded within a structurally valid (but malicious) request.
 
 ---
@@ -100,6 +103,9 @@ curl -s -X POST "${TARGET}/TariffGateway" \
 </soap:Envelope>'
 ```
 
+<img width="1310" height="1037" alt="image" src="https://github.com/user-attachments/assets/de667041-7701-41e4-82c7-e1a669bd3240" />
+
+
 Expected response: tariff calculation result. This confirms the service is functional.
 
 ### 2.2 — Test XXE with File Read
@@ -132,6 +138,9 @@ curl -s -X POST "${TARGET}/TariffGateway" \
   </soap:Body>
 </soap:Envelope>'
 ```
+
+<img width="1689" height="1152" alt="image" src="https://github.com/user-attachments/assets/6703cc6b-0465-4cb4-911e-3b9f275a5298" />
+
 
 **Expected:** The SOAP fault message includes the content of `/etc/passwd` (or the first few lines) embedded in `faultstring`. This confirms the XXE is reflected in output.
 
