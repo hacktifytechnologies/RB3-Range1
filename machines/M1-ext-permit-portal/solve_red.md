@@ -65,12 +65,16 @@ nmap -sV -p- 203.x.x.x --min-rate=2000 -T4
 # Note all open ports — the machine runs several services
 # Key ones for this challenge: :8443 (permit portal), :9443 (DGH registry)
 ```
+<img width="1857" height="1416" alt="image" src="https://github.com/user-attachments/assets/d2150f17-c620-494d-bcee-9534ca27d919" />
+
 
 ```bash
 # Fingerprint the permit portal
 curl -si http://203.x.x.x:8443/ | head -25
 # Note: Python/Flask backend, standard RPAL portal
 ```
+<img width="1996" height="852" alt="image" src="https://github.com/user-attachments/assets/6946544e-7789-4b75-966f-7c96f560dad7" />
+
 
 ### 1.2 — Credential Discovery via DGH Registry (Port 9443)
 
@@ -81,6 +85,9 @@ in its document download endpoint. This is the intended credential discovery pat
 # Confirm the registry is running
 curl -s http://203.x.x.x:9443/ | grep -i "DGH\|registry\|document"
 ```
+
+<img width="2033" height="477" alt="image" src="https://github.com/user-attachments/assets/aea22be5-f8c8-483b-a003-ba6ecd611351" />
+
 
 The "Download" links on the registry page use a `?doc=` parameter with no path
 sanitisation. But first — always view the page source:
@@ -94,6 +101,9 @@ curl -s http://203.x.x.x:9443/ | grep -i "todo\|fixme\|remove\|delete\|note"
 ```html
 <!-- TODO(arjun.mehta): DEVOPS-1089 — remove dev-notes.txt from docs dir before DGH go-live. Flagged in sprint review 2024-11-08. -->
 ```
+
+<img width="1780" height="117" alt="image" src="https://github.com/user-attachments/assets/895be00e-ed1b-4526-864e-2345459553b0" />
+
 
 This comment reveals the filename directly. Developers routinely leave TODO comments
 in HTML source referencing pending cleanup tasks — always check source during recon.
@@ -126,6 +136,8 @@ Test contractor accounts for DGH integration demonstration (DEVOPS-1089):
 NOTE: Jira DEVOPS-1089 — these test credentials must be rotated before
 production go-live. Arjun to confirm with DGH team by 2024-11-30.
 ```
+<img width="1082" height="404" alt="image" src="https://github.com/user-attachments/assets/af448653-ef18-404c-8fc7-fc261e3684bb" />
+
 
 **Why this is realistic:** Developers routinely leave onboarding notes in shared
 document repositories with test credentials, planning to "clean up later."
@@ -145,6 +157,8 @@ curl -s -X POST http://203.x.x.x:8443/login \
 TOKEN=$(grep rpal_token /tmp/cookies.txt | awk '{print $NF}')
 echo "Token: ${TOKEN:0:60}..."
 ```
+<img width="2015" height="735" alt="image" src="https://github.com/user-attachments/assets/aaacbc69-8121-4c50-b089-0d672363fdaf" />
+
 
 **Decode the JWT header — this reveals the algorithm and kid:**
 
