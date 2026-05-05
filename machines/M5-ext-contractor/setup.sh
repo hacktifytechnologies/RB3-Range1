@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# setup.sh — M5 · ext-contractor · RNG-EXT-01
+# setup.sh — M5 · ext-contractor-portal · RNG-EXT-01
+# Challenge: Exposed .git directory → git history → hardcoded admin token → SSH key
 set -euo pipefail
 [[ $EUID -ne 0 ]] && { echo "Run as root"; exit 1; }
-python3 -c "import flask" 2>/dev/null || { echo "[FAIL] Run deps.sh first"; exit 1; }
+command -v node >/dev/null || { echo "[FAIL] Run deps.sh first"; exit 1; }
+command -v git  >/dev/null || { echo "[FAIL] git not found — run deps.sh"; exit 1; }
 
 GREEN='\033[0;32m'; CYAN='\033[0;36m'; NC='\033[0m'
 log()  { echo -e "${GREEN}[SETUP]${NC} $*"; }
@@ -11,111 +13,134 @@ info() { echo -e "${CYAN}[INFO]${NC}  $*"; }
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_DIR="/opt/rpal/contractor-portal"
 APP_USER="rpal-contractor"
-DB_DIR="/var/lib/rpal/contractor-portal"
-LOG_DIR="/var/log/rpal/contractor-portal"
-CFG_DIR="/etc/rpal/upstream"
+KEY_DIR="/etc/rpal/keys"
 SVC="rpal-contractor-portal"
 
-log "=== M5 · ext-contractor setup ==="
+# The admin token — committed in old git history, then "removed" in current code
+ADMIN_TOKEN="RPAL-ADMIN-TOKEN-2024-9c4e2a8f1b7d3e6a"
+
+log "=== M5 · ext-contractor-portal setup ==="
+log "Challenge: Exposed .git directory → hardcoded admin token → SSH key"
+
+# ── Service user ───────────────────────────────────────────────────────────────
 id "$APP_USER" &>/dev/null || useradd -r -s /bin/false -d "$APP_DIR" \
-    -c "RPAL Contractor Portal Service" "$APP_USER"
-mkdir -p "$APP_DIR/app/templates" "$DB_DIR" "$LOG_DIR" "$CFG_DIR"
+    -c "RPAL Contractor Registration Service" "$APP_USER"
 
-# Generate SSH pivot key
-log "Generating svc-deploy pivot SSH key..."
-ssh-keygen -t rsa -b 2048 -f "${CFG_DIR}/svc-deploy-rsa" -N "Deploy@SSH!RPAL24Corp" -q
-chmod 600 "${CFG_DIR}/svc-deploy-rsa"
-chmod 644 "${CFG_DIR}/svc-deploy-rsa.pub"
+# ── SSH key for Range 2 pivot ─────────────────────────────────────────────────
+mkdir -p "$KEY_DIR"
+log "Generating Range 2 pivot SSH key (svc-deploy)..."
+ssh-keygen -t rsa -b 2048 -f "${KEY_DIR}/svc-deploy-rsa" \
+    -N "Deploy@SSH!RPAL24Corp" -C "svc-deploy@rpal.in" -q 2>/dev/null || true
+chmod 600 "${KEY_DIR}/svc-deploy-rsa"
+chown "root:${APP_USER}" "${KEY_DIR}/svc-deploy-rsa"
+log "SSH key: ${KEY_DIR}/svc-deploy-rsa (readable by ${APP_USER})"
 
-# Plant config.ini (SSRF target)
-log "Creating /etc/rpal/upstream/config.ini (SSRF target)..."
-PRIV_KEY=$(cat "${CFG_DIR}/svc-deploy-rsa")
-cat > "${CFG_DIR}/config.ini" << CFGEOF
-; RPAL Upstream Services Configuration
-; Owner: arjun.mehta@rpal.in | Last updated: 2024-11-01
-; DO NOT COMMIT — see DEVOPS-1298
-
-[upstream_ldap]
-server = 203.x.x.x
-port = 389
-base_dn = dc=corp,dc=rpal,dc=in
-bind_dn = cn=svc-api-gateway,ou=service-accounts,dc=corp,dc=rpal,dc=in
-bind_password = Ldap@GW!Bind2024#RPAL
-use_ssl = false
-
-[corporate_ssh]
-jump_host = 203.x.x.x
-jump_port = 22
-jump_user = svc-deploy
-key_passphrase = Deploy@SSH!RPAL24Corp
-
-[ssh_private_key]
-; RSA key for svc-deploy@203.x.x.x (RNG-EXT-02 entry) | Rotate: 2025-05-01
-key = ${PRIV_KEY}
-
-[graphql_api]
-endpoint = http://203.x.x.x:4000/graphql
-api_key = RPAL-API-2024-XK9mP3nT8qRs
-service_pass = T@riff@Expl0re!24
-
-[soap_gateway]
-endpoint = http://203.x.x.x:8080/TariffGateway
-service_user = rpal-tariff-svc
-service_pass = TariffGW@Soap!2024#RPAL
-CFGEOF
-chmod 640 "${CFG_DIR}/config.ini"
-chown root:"$APP_USER" "${CFG_DIR}/config.ini"
-
-# Init DB
-python3 -c "
-import sqlite3
-conn = sqlite3.connect('/var/lib/rpal/contractor-portal/onboarding.db')
-conn.execute('''CREATE TABLE IF NOT EXISTS applications (
-    id INTEGER PRIMARY KEY, application_id TEXT UNIQUE,
-    contractor_username TEXT, company_name TEXT, contact_name TEXT,
-    contact_email TEXT, work_category TEXT, company_profile_url TEXT,
-    pan_number TEXT, status TEXT, submitted_at TEXT)''')
-conn.commit(); conn.close(); print('DB OK')
-"
-
+# ── Install app and create git history ────────────────────────────────────────
+mkdir -p "$APP_DIR/app"
 cp -r "${SCRIPT_DIR}/app/"* "$APP_DIR/app/"
-chown -R "$APP_USER:$APP_USER" "$APP_DIR" "$LOG_DIR" "$DB_DIR"
 
+cd "$APP_DIR/app"
+npm install --prefer-offline -q 2>/dev/null || npm install -q
+
+# Configure git identity for commits
+git config --global user.email "arjun.mehta@rpal.in" 2>/dev/null || true
+git config --global user.name  "Arjun Mehta" 2>/dev/null || true
+
+log "Initialising git repository with sensitive history..."
+
+# ── Create git history ─────────────────────────────────────────────────────────
+git init -q "$APP_DIR/app" 2>/dev/null || true
+cd "$APP_DIR/app"
+
+# ── COMMIT 1: Initial commit with hardcoded admin token ───────────────────────
+# Write a version of app.js that has the token hardcoded
+cat > /tmp/app_v1.js << APPEOF
+'use strict';
+// RPAL Contractor Registration System v1.0
+// TODO: move ADMIN_TOKEN to environment variable before production deploy
+
+const ADMIN_TOKEN = '${ADMIN_TOKEN}';
+const API_KEY     = 'RPAL-CONTRACTOR-API-2024-xK9mP3nT8qRs7vL2';
+
+console.log('RPAL Contractor Portal initialising...');
+APPEOF
+
+git add . 2>/dev/null || true
+# Stash current app.js temporarily for the fake commit
+cp app.js /tmp/app_current.js
+cp /tmp/app_v1.js app.js
+
+GIT_AUTHOR_DATE="2024-09-15T09:00:00+05:30" \
+GIT_COMMITTER_DATE="2024-09-15T09:00:00+05:30" \
+git commit -q -m "Initial commit — RPAL Contractor Registration System v1.0
+
+- Express + EJS setup
+- Contractor registration endpoint
+- Admin export endpoint with static credentials
+- TODO: Jira DEVOPS-1041 — move ADMIN_TOKEN to env before go-live" 2>/dev/null || true
+
+# ── COMMIT 2: Dependency update ───────────────────────────────────────────────
+GIT_AUTHOR_DATE="2024-10-01T11:30:00+05:30" \
+GIT_COMMITTER_DATE="2024-10-01T11:30:00+05:30" \
+git commit -q -m "chore: update npm dependencies to latest" --allow-empty 2>/dev/null || true
+
+# ── COMMIT 3: Remove hardcoded token (current code) ──────────────────────────
+# Restore the real app.js
+cp /tmp/app_current.js app.js
+
+GIT_AUTHOR_DATE="2024-10-15T14:20:00+05:30" \
+GIT_COMMITTER_DATE="2024-10-15T14:20:00+05:30" \
+git commit -q -a -m "security: move ADMIN_TOKEN to environment variable
+
+Jira DEVOPS-1041 — ADMIN_TOKEN was hardcoded in source code.
+Moved to systemd Environment= directive as per security review.
+API_KEY unchanged (rotated separately)." 2>/dev/null || true
+
+log "Git history created: 3 commits"
+git log --oneline 2>/dev/null | head -5
+
+# ── systemd service ────────────────────────────────────────────────────────────
 cat > "/etc/systemd/system/${SVC}.service" << SVCEOF
 [Unit]
-Description=RPAL Contractor Onboarding and Qualification Portal
+Description=RPAL Contractor Registration System
 After=network.target
 [Service]
 Type=simple
 User=${APP_USER}
 WorkingDirectory=${APP_DIR}/app
-ExecStart=/usr/bin/python3 ${APP_DIR}/app/app.py
-Restart=always; RestartSec=5
-StandardOutput=append:${LOG_DIR}/portal.log
-StandardError=append:${LOG_DIR}/error.log
-SyslogIdentifier=rpal-contractor-portal
-Environment=DB_PATH=${DB_DIR}/onboarding.db
-Environment=WKHTMLTOPDF=/usr/local/bin/wkhtmltopdf
-Environment=PORT=9000
-NoNewPrivileges=true
-PrivateTmp=false
+ExecStart=/usr/bin/node ${APP_DIR}/app/app.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=${SVC}
+Environment=PORT=4000
+Environment=ADMIN_TOKEN=${ADMIN_TOKEN}
+Environment=SSH_KEY_PATH=${KEY_DIR}/svc-deploy-rsa
 [Install]
 WantedBy=multi-user.target
 SVCEOF
 
-systemctl daemon-reload; systemctl enable "$SVC"; systemctl start "$SVC"
-sleep 2
-systemctl is-active --quiet "$SVC" && log "Contractor portal running on :9000" \
-    || { journalctl -u "$SVC" -n 10; exit 1; }
+chown -R "$APP_USER:$APP_USER" "$APP_DIR"
+# Note: .git must be readable by web server for the vulnerability to work
+chmod -R 755 "$APP_DIR/app/.git" 2>/dev/null || true
+
+systemctl daemon-reload
+systemctl enable "$SVC"
+systemctl restart "$SVC"
+sleep 3
+
+systemctl is-active --quiet "$SVC" && log "Contractor portal running on :4000" \
+    || { journalctl -u "$SVC" -n 20 --no-pager; echo "[FAIL]"; exit 1; }
 
 echo "contractor.rpal.in" > /etc/hostname
-command -v ufw &>/dev/null && ufw allow 9000/tcp comment "RPAL Contractor Portal" >/dev/null 2>&1 || true
+hostname contractor.rpal.in 2>/dev/null || true
+command -v ufw &>/dev/null && ufw allow 4000/tcp comment "RPAL Contractor Portal" >/dev/null 2>&1 || true
 
 MY_IP=$(hostname -I | awk '{print $1}')
-info "Portal: http://${MY_IP}:9000/"
-info "SSRF target: file:///etc/rpal/upstream/config.ini"
-info "Creds: contractor.01 / Contractor@2024!"
-info "Pivot SSH public key: ${CFG_DIR}/svc-deploy-rsa.pub"
-echo ""
-log "=== IMPORTANT: Copy the following public key to Range 2 M1 authorized_keys ==="
-cat "${CFG_DIR}/svc-deploy-rsa.pub"
+log "=== M5 setup COMPLETE ==="
+info "Portal:      http://${MY_IP}:4000/"
+info "Vuln:        GET /.git/logs/HEAD → git log → old commit → hardcoded token"
+info "Admin token: ${ADMIN_TOKEN}"
+info "Admin API:   GET /admin/export (Authorization: Bearer <token>)"
+info "Flag:        SSH key for svc-deploy → RNG-EXT-02 pivot"

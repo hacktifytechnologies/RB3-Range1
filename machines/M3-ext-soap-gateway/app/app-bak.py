@@ -334,8 +334,8 @@ def imds_iam_creds():
         "SecretAccessKey": secret_raw,
         "Token":           token_raw * 2,
         "Expiration":      (now + datetime.timedelta(hours=6)).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "_rpal_note":      "rpal-upstream-api-role — grants access to Geological Survey Analytics Portal",
-        "_rpal_endpoint":  "http://203.x.x.x:3000",
+        "_rpal_note":      "rpal-upstream-api-role — grants access to internal API gateway",
+        "_rpal_endpoint":  "http://203.x.x.x:8000/api/v2/admin/export",
     }, indent=2), 200, {'Content-Type': 'application/json'})
 
 @app.route('/latest/meta-data/instance-id')

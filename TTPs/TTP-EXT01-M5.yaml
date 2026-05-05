@@ -1,12 +1,13 @@
-id: DEEPSTRIKE-EXT01-M5-WKHTMLTOPDF-SSRF
-name: DEEPSTRIKE-Setup-M5-WkhtmltopdfFileSSRF
+id: DEEPSTRIKE-EXT01-M5-GIT-EXPOSURE
+name: DEEPSTRIKE-Setup-M5-ExposedGitDirectoryCredentialExtraction
 description: >
-  Participant targets the RPAL Contractor Onboarding Portal which passes the user-supplied
-  company_profile_url field directly to wkhtmltopdf 0.12.5 with the --enable-local-file-access
-  flag set. Submitting file:///etc/rpal/upstream/config.ini as the profile URL causes the server
-  to read the file and embed its contents as a second page in the generated PDF. The config file
-  contains the RSA-2048 SSH private key and passphrase for svc-deploy access to Range 2 as well
-  as LDAP bind credentials, completing the pivot chain to RNG-EXT-02.
+  Participant uses the API key from M4 to access the RPAL Contractor Registration
+  System. The application was deployed directly from a git working directory with
+  express.static configured using dotfiles allow, exposing the entire .git directory
+  tree over HTTP. Fetching the git commit history reveals an initial commit where
+  the admin token was hardcoded in source code before being moved to an environment
+  variable. Using the recovered token against the admin export endpoint retrieves
+  the Range 2 SSH pivot credentials for svc-deploy access to RNG-EXT-02.
 tactic: credential-access
 technique_id: T1552.001
 technique_name: Unsecured Credentials
@@ -15,6 +16,6 @@ tag: "range"
 executors:
   - name: sh
     platform: linux
-    command: chmod +x /opt/rpal/contractor-portal/app/app.py && chown -R rpal-contractor:rpal-contractor /opt/rpal/contractor-portal && chmod 640 /etc/rpal/upstream/config.ini && chown root:rpal-contractor /etc/rpal/upstream/config.ini && systemctl enable rpal-contractor-portal --now
+    command: chmod -R 755 /opt/rpal/contractor-portal/app/.git && chown -R rpal-contractor:rpal-contractor /opt/rpal/contractor-portal && chmod 600 /etc/rpal/keys/svc-deploy-rsa && chown root:rpal-contractor /etc/rpal/keys/svc-deploy-rsa && systemctl enable rpal-contractor-portal --now
     payloads: []
     parsers: []

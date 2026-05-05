@@ -1,167 +1,85 @@
 #!/usr/bin/env bash
-# =============================================================================
-# setup.sh — M4 · ext-haproxy · RNG-EXT-01 · SETU DVAAR
-# OPERATION DEEPSTRIKE | RPAL API Gateway
-# Challenge: HTTP Request Smuggling (CL.TE) — Session Token Capture
-# MITRE: T1557 (Adversary-in-the-Middle) · T1550 (Use Alternate Auth Material)
-# Ubuntu 22.04 LTS — NO internet required after deps.sh
-# =============================================================================
+# setup.sh — M4 · ext-survey-portal · RNG-EXT-01
+# Challenge: EJS Server-Side Template Injection → RCE → M5 API key
 set -euo pipefail
+[[ $EUID -ne 0 ]] && { echo "Run as root"; exit 1; }
+command -v node >/dev/null || { echo "[FAIL] Run deps.sh first"; exit 1; }
 
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
+GREEN='\033[0;32m'; CYAN='\033[0;36m'; NC='\033[0m'
 log()  { echo -e "${GREEN}[SETUP]${NC} $*"; }
 info() { echo -e "${CYAN}[INFO]${NC}  $*"; }
-warn() { echo -e "${YELLOW}[WARN]${NC}  $*"; }
-fail() { echo -e "${RED}[FAIL]${NC}  $*"; exit 1; }
-
-[[ $EUID -ne 0 ]] && fail "Run as root"
-command -v haproxy >/dev/null 2>&1 || fail "HAProxy not found — run deps.sh first"
-command -v python3 >/dev/null 2>&1 || fail "Python3 not found — run deps.sh first"
-python3 -c "import flask, requests" 2>/dev/null || fail "Python deps missing — run deps.sh first"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APP_DIR="/opt/rpal/survey-portal"
+APP_USER="rpal-survey"
+SVC="rpal-survey-portal"
+FLAG_DIR="/etc/rpal/contractor"
 
-log "=== M4 · ext-haproxy setup ==="
-log "Challenge: HTTP Request Smuggling (CL.TE) with session capture"
-log "OPERATION DEEPSTRIKE | SETU DVAAR | RNG-EXT-01"
+log "=== M4 · ext-survey-portal setup ==="
+log "Challenge: EJS Server-Side Template Injection → RCE"
 
-APP_DIR="/opt/rpal/api-gateway"
-APP_USER="rpal-gateway"
-
-# ── Users ──────────────────────────────────────────────────────────────────────
-log "Creating service users..."
+# ── Service user ───────────────────────────────────────────────────────────────
 id "$APP_USER" &>/dev/null || useradd -r -s /bin/false -d "$APP_DIR" \
-    -c "RPAL API Gateway Service" "$APP_USER"
+    -c "RPAL Geological Survey Portal" "$APP_USER"
 
-mkdir -p "$APP_DIR/app" 
-chown -R "$APP_USER:$APP_USER" "$APP_DIR" 
-
-# ── Copy application files ─────────────────────────────────────────────────────
-log "Installing backend application files..."
+# ── Install app files ──────────────────────────────────────────────────────────
+mkdir -p "$APP_DIR/app" "$FLAG_DIR"
 cp -r "${SCRIPT_DIR}/app/"* "$APP_DIR/app/"
-chown -R "$APP_USER:$APP_USER" "$APP_DIR/app"
 
-# ── HAProxy configuration ──────────────────────────────────────────────────────
-log "Installing HAProxy configuration..."
-cp "${SCRIPT_DIR}/haproxy/haproxy.cfg" /etc/haproxy/haproxy.cfg
-haproxy -c -f /etc/haproxy/haproxy.cfg || fail "HAProxy config invalid"
+# Install npm dependencies
+cd "$APP_DIR/app"
+npm install --prefer-offline -q 2>/dev/null || npm install -q
+chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 
-# ── Backend Flask app systemd service ─────────────────────────────────────────
-log "Creating API gateway backend service..."
-cat > /etc/systemd/system/rpal-api-backend.service << SVCEOF
+# ── Plant M5 API key (the SSTI flag) ──────────────────────────────────────────
+cat > "$FLAG_DIR/api-key.txt" << 'KEYEOF'
+# RPAL Contractor Registration System — API Access Key
+# Generated: 2024-10-01 | Owner: arjun.mehta@rpal.in
+# Purpose: Contractor portal admin access for RPAL internal users
+# Endpoint: http://203.x.x.x:4000
+
+RPAL-CONTRACTOR-API-2024-xK9mP3nT8qRs7vL2
+KEYEOF
+chown "root:${APP_USER}" "$FLAG_DIR/api-key.txt"
+chmod 640 "$FLAG_DIR/api-key.txt"
+log "API key planted at ${FLAG_DIR}/api-key.txt (readable by ${APP_USER})"
+
+# ── systemd service ────────────────────────────────────────────────────────────
+cat > "/etc/systemd/system/${SVC}.service" << SVCEOF
 [Unit]
-Description=RPAL API Gateway Backend Application Server
-Documentation=https://intranet.rpal.in/docs/api-gateway
+Description=RPAL Geological Survey Analytics Portal
 After=network.target
-
 [Service]
 Type=simple
 User=${APP_USER}
-Group=${APP_USER}
-WorkingDirectory=${APP_DIR}
-ExecStart=/usr/local/bin/gunicorn \
-    --bind 127.0.0.1:8000 \
-    --workers 2 \
-    --worker-class sync \
-    --timeout 30 \
-    --access-logfile - \
-    --error-logfile - \
-    --log-level info \
-    app.app:app
+WorkingDirectory=${APP_DIR}/app
+ExecStart=/usr/bin/node ${APP_DIR}/app/app.js
 Restart=always
 RestartSec=5
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=rpal-api-backend
-NoNewPrivileges=true
-PrivateTmp=true
-
-[Install]
-WantedBy=multi-user.target
-SVCEOF
-
-# ── HAProxy systemd ────────────────────────────────────────────────────────────
-log "Enabling HAProxy..."
-systemctl enable haproxy
-systemctl restart haproxy
-
-# ── Backend service ────────────────────────────────────────────────────────────
-log "Starting API gateway backend..."
-systemctl daemon-reload
-systemctl enable rpal-api-backend
-systemctl start rpal-api-backend
-sleep 2
-
-if ! systemctl is-active --quiet rpal-api-backend; then
-    fail "Backend service failed — check: journalctl -u rpal-api-backend -n 20"
-fi
-
-# ── Internal monitor service (the "victim daemon") ─────────────────────────────
-# Named as a legitimate internal monitoring component — NOT as a simulation.
-# Blue teamers inspecting systemd services will see "RPAL API Gateway Health Monitor"
-# and treat it as a legitimate operational component.
-log "Installing API gateway health monitor..."
-
-cat > /etc/systemd/system/rpal-apigw-monitor.service << SVCEOF
-[Unit]
-Description=RPAL API Gateway Health Monitor
-Documentation=https://intranet.rpal.in/docs/sre/api-gateway-monitoring
-After=network.target rpal-api-backend.service
-
-[Service]
-Type=simple
-User=${APP_USER}
-Group=${APP_USER}
-WorkingDirectory=${APP_DIR}
-ExecStart=/usr/bin/python3 ${APP_DIR}/app/monitor.py
-Restart=always
-RestartSec=10
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=rpal-apigw-monitor
-
-Environment=RPAL_GATEWAY_URL=http://127.0.0.1:80
-Environment=RPAL_BACKEND_URL=http://127.0.0.1:8000
-Environment=PROBE_INTERVAL=10
-
-NoNewPrivileges=true
-PrivateTmp=true
-
+SyslogIdentifier=${SVC}
+Environment=PORT=3000
 [Install]
 WantedBy=multi-user.target
 SVCEOF
 
 systemctl daemon-reload
-systemctl enable rpal-apigw-monitor
-systemctl start rpal-apigw-monitor
-sleep 2
+systemctl enable "$SVC"
+systemctl restart "$SVC"
+sleep 3
 
-if ! systemctl is-active --quiet rpal-apigw-monitor; then
-    warn "Monitor service not active — check: journalctl -u rpal-apigw-monitor -n 10"
-else
-    log "API gateway monitor running — probing every 10 seconds"
-fi
+systemctl is-active --quiet "$SVC" && log "Survey portal running on :3000" \
+    || { journalctl -u "$SVC" -n 20 --no-pager; echo "[FAIL]"; exit 1; }
 
-# ── Hostname ───────────────────────────────────────────────────────────────────
-echo "api-gw.rpal.in" > /etc/hostname
-hostname api-gw.rpal.in 2>/dev/null || true
+echo "survey.rpal.in" > /etc/hostname
+hostname survey.rpal.in 2>/dev/null || true
+command -v ufw &>/dev/null && ufw allow 3000/tcp comment "RPAL Survey Portal" >/dev/null 2>&1 || true
 
-# ── Firewall ───────────────────────────────────────────────────────────────────
-if command -v ufw &>/dev/null; then
-    ufw allow 80/tcp comment "RPAL API Gateway (HAProxy)" >/dev/null 2>&1 || true
-    ufw deny 8000/tcp comment "RPAL Backend — internal only" >/dev/null 2>&1 || true
-fi
-
-# ── Summary ────────────────────────────────────────────────────────────────────
 MY_IP=$(hostname -I | awk '{print $1}')
-echo ""
-log "=== M4 · ext-haproxy setup COMPLETE ==="
-info "HAProxy:          http://${MY_IP}:80/ (public gateway)"
-info "Backend:          http://127.0.0.1:8000/ (internal only)"
-info "Monitor interval: 10 seconds (probes /api/v2/permits/status with auth)"
-info "Challenge target: /api/v2/admin/export (requires captured token)"
-info "Vulnerability:    CL.TE request smuggling via HAProxy→Gunicorn desync"
-info ""
-info "Monitor service:  systemctl status rpal-apigw-monitor"
-info "Token window:     rotates every 30 minutes (deterministic)"
-warn "Run Honeytraps/M4-ext-haproxy.sh to deploy supporting services"
+log "=== M4 setup COMPLETE ==="
+info "Portal:    http://${MY_IP}:3000/"
+info "Auth:      IMDS AccessKeyId + Token from M3"
+info "Vuln:      POST /api/reports/generate — template field → ejs.render(template)"
+info "SSTI RCE:  <%= global.process.mainModule.require('child_process').execSync('cat /etc/rpal/contractor/api-key.txt').toString() %>"
+info "Flag:      ${FLAG_DIR}/api-key.txt"
