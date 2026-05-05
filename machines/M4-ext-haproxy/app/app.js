@@ -51,7 +51,11 @@ function computeCreds(dateStr) {
 function validateImds(accessKeyId, token) {
     for (const d of [todayStr(), prevDayStr()]) {
         const c = computeCreds(d);
-        if (accessKeyId === c.accessKeyId && token === c.token) return true;
+        // Accept full 128-char token OR just the first 64 chars (one SHA-256 hash)
+        // Terminals often wrap the 128-char token making it easy to miss the second half
+        const half = c.token.slice(0, 64);
+        if (accessKeyId === c.accessKeyId &&
+            (token === c.token || token === half)) return true;
     }
     return false;
 }
@@ -162,7 +166,7 @@ input:focus{border-color:var(--amber)}
       <div class="lcard">
         <div class="lcard-title">Sign In</div>
         <div class="lcard-sub">survey.rpal.in &middot; IAM Authentication</div>
-        <%= error ? '<div class="err">&#9888; ' + error + '</div>' : '' %>
+        <%- error ? '<div class="err">&#9888; ' + error + '</div>' : '' %>
         <form method="POST" action="/login">
           <div class="field"><label>AWS Access Key ID</label>
             <input name="accessKeyId" placeholder="ASIAxxxxxxxxxxxxxxxx" autocomplete="off" spellcheck="false" value="<%= accessKeyId || '' %>"></div>
@@ -223,7 +227,7 @@ const PAGE_DASHBOARD = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-
     <div class="card-hd"><span class="card-title">&#127381; Report Generator</span>
       <span style="font-size:10px;color:var(--amber);font-family:var(--mono)">Custom Template Support</span></div>
     <div style="padding:20px">
-      <p style="font-size:13px;color:var(--t2);margin-bottom:16px">Generate formatted geological reports using custom EJS templates. Templates support dynamic data binding with well log fields.</p>
+      <p style="font-size:13px;color:var(--t2);margin-bottom:16px">Generate formatted geological reports using custom temp. Temp support dynamic data binding with well log fields.</p>
       <div id="report-ui">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
           <div><label style="display:block;font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;font-family:var(--mono)">Site Name</label>
@@ -233,10 +237,10 @@ const PAGE_DASHBOARD = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-
               <option>Well Log Summary</option><option>Seismic Analysis</option><option>Formation Evaluation</option><option>Custom</option>
             </select></div>
         </div>
-        <div style="margin-bottom:14px"><label style="display:block;font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;font-family:var(--mono)">Report Template (EJS syntax supported)</label>
+        <div style="margin-bottom:14px"><label style="display:block;font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;font-family:var(--mono)">Report Template (custom syntax supported)</label>
           <textarea id="tmpl-input" rows="6" style="width:100%;background:var(--bg);border:1.5px solid var(--br);border-radius:6px;padding:10px 13px;font-size:12px;color:var(--text);outline:none;resize:vertical;font-family:var(--mono);line-height:1.6">RPAL Geological Survey Report
-Site: <%= site %>
-Date: <%= date %>
+Site: <site>
+Date: <date>
 Status: Well data analysis complete.
 Prepared by: RPAL Exploration Division</textarea></div>
         <button class="btn" onclick="generateReport()">Generate Report</button>
