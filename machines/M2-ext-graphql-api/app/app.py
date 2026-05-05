@@ -24,8 +24,6 @@ logging.basicConfig(level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s',
     stream=sys.stderr)
 
-# ── Auth helpers ───────────────────────────────────────────────────────────────
-
 def get_auth_context(req) -> dict:
     auth = req.headers.get('Authorization', '')
     api_key = req.headers.get('X-API-Key', '')
@@ -47,14 +45,10 @@ def require_auth(fn):
         return fn(root, info, **kwargs)
     return wrapper
 
-# ── Database helpers ───────────────────────────────────────────────────────────
-
 def db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
-
-# ── Strawberry types ───────────────────────────────────────────────────────────
 
 @strawberry.type
 class WellLog:
@@ -97,7 +91,7 @@ class SystemAccount:
     endpoint: str
     api_key: Optional[str]
     password_hash: Optional[str]
-    plaintext_password: Optional[str]   # Some accounts stored plain for "legacy reasons"
+    plaintext_password: Optional[str]   
     owner: str
     notes: str
 
@@ -114,8 +108,6 @@ class InternalService:
 class BatchResult:
     key: str
     data: strawberry.scalars.JSON
-
-# ── Resolvers ──────────────────────────────────────────────────────────────────
 
 @strawberry.type
 class Query:
@@ -172,23 +164,7 @@ class Query:
 
     @strawberry.field
     def batch_query(self, info: Info, queries: List[str]) -> List[BatchResult]:
-        """
-        VULNERABILITY: Missing authorization check.
-
-        This resolver was added for "performance" to allow multiple queries in one
-        request. The developer forgot to add the @require_auth decorator and did not
-        attach it to the permission middleware. It executes any sub-query directly
-        against the database without authentication.
-
-        An attacker who discovers this resolver via field suggestion enumeration can:
-        1. Query systemAccounts without authentication
-        2. Query internalServices to get downstream API credentials
-        3. Access all employee data without service key
-
-        Field suggestion path:
-        - Query `{ batchQueary(...) }` → suggestion: "Did you mean batchQuery?"
-        - Query `{ batchQuery(querie: ...) }` → suggestion: "Did you mean queries?"
-        """
+        
         logging.warning(
             f"BATCH_QUERY_ACCESSED queries={queries} "
             f"ip={request.remote_addr} "
@@ -229,10 +205,8 @@ class Query:
 
 schema = strawberry.Schema(
     query=Query,
-    extensions=[AddValidationRules([NoSchemaIntrospectionCustomRule])],  # Introspection disabled — but field suggestions NOT disabled
+    extensions=[AddValidationRules([NoSchemaIntrospectionCustomRule])],  
 )
-
-# ── Flask view with auth context injection ─────────────────────────────────────
 
 class AuthGraphQLView(GraphQLView):
     def get_context(self, request, response) -> dict:
