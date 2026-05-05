@@ -533,6 +533,9 @@ for e in data['config']:
 "
 ```
 
+<img width="1094" height="1030" alt="image" src="https://github.com/user-attachments/assets/7fdfe361-6580-438b-bb2b-679b71b6e1f9" />
+
+
 **Key credentials extracted:**
 
 | Key | Value | Purpose |
