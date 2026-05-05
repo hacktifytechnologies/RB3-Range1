@@ -332,10 +332,12 @@ def imds_iam_creds():
         "Type":            "AWS-HMAC",
         "AccessKeyId":     f"ASIA{key_id_raw}",
         "SecretAccessKey": secret_raw,
-        "Token":           token_raw * 2,
+        "Token":           token_raw,
         "Expiration":      (now + datetime.timedelta(hours=6)).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "_rpal_note":      "rpal-upstream-api-role — grants access to Geological Survey Analytics Portal",
         "_rpal_endpoint":  "http://203.x.x.x:3000",
+        "_token_length":   128,
+        "_usage":          "Paste the full 128-character Token value into survey.rpal.in:3000 Session Token field",
     }, indent=2), 200, {'Content-Type': 'application/json'})
 
 @app.route('/latest/meta-data/instance-id')
