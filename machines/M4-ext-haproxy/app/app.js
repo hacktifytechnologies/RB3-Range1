@@ -1,20 +1,6 @@
 /*
  * RPAL Geological Survey Analytics Portal
  * M4 · ext-survey-portal · RNG-EXT-01 · SETU DVAAR · OPERATION DEEPSTRIKE
- *
- * VULNERABILITY: Server-Side Template Injection (SSTI) via EJS
- * CWE-1336 (Improper Neutralization of Special Elements in Template Engine)
- *
- * The /api/reports/generate endpoint accepts a user-supplied template string
- * and passes it directly to ejs.render(). EJS executes arbitrary JavaScript
- * inside <%= ... %> tags in the context of the Node.js process.
- *
- * EXPLOIT:
- *   template: <%= global.process.mainModule.require('child_process')
- *               .execSync('cat /etc/rpal/contractor/api-key.txt').toString() %>
- *
- * AUTH: IMDS credentials from M3 (AccessKeyId + Token fields).
- * Both are deterministic from the current date — same formula used here.
  */
 
 'use strict';
@@ -33,7 +19,6 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieSession({ name: 'rpal_sess', secret: 'RPAL-Survey-Portal-2024', maxAge: 8 * 60 * 60 * 1000 }));
 
-// ── IMDS credential validation (same algorithm as M3) ─────────────────────────
 function todayStr() {
     return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 }
@@ -51,8 +36,6 @@ function computeCreds(dateStr) {
 function validateImds(accessKeyId, token) {
     for (const d of [todayStr(), prevDayStr()]) {
         const c = computeCreds(d);
-        // Accept full 128-char token OR just the first 64 chars (one SHA-256 hash)
-        // Terminals often wrap the 128-char token making it easy to miss the second half
         const half = c.token.slice(0, 64);
         if (accessKeyId === c.accessKeyId &&
             (token === c.token || token === half)) return true;
@@ -66,7 +49,6 @@ function requireAuth(req, res, next) {
     res.redirect('/login');
 }
 
-// ── Well log data (static, for UI realism) ────────────────────────────────────
 const WELL_LOGS = [
     { well_id: 'WL-KG-2024-001', block: 'KG-DWN-98/3',    depth: '4,820m', formation: 'Godavari-IV', status: 'Suspended', operator: 'RPAL' },
     { well_id: 'WL-MB-2024-002', block: 'MB-OSN-2005/2',  depth: '2,340m', formation: 'Mumbai-II',   status: 'Completed', operator: 'RPAL' },
@@ -79,8 +61,6 @@ const SURVEY_SITES = [
     { id: 'S002', name: 'Mumbai High North',  lat: '19.1°N', lon: '72.3°E', type: 'Marine Survey', status: 'Complete' },
     { id: 'S003', name: 'Rajasthan Block',    lat: '27.4°N', lon: '71.8°E', type: 'Gravity/Mag',   status: 'Active' },
 ];
-
-// ── HTML pages ─────────────────────────────────────────────────────────────────
 
 const CSS_BASE = `
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -268,8 +248,6 @@ async function generateReport() {
 </script>
 </body></html>`;
 
-// ── Routes ─────────────────────────────────────────────────────────────────────
-
 app.get('/', (req, res) => {
     if (req.session && req.session.authenticated) return res.redirect('/dashboard');
     res.redirect('/login');
@@ -312,17 +290,6 @@ app.post('/api/reports/generate', requireAuth, (req, res) => {
     console.log(`REPORT_GEN site=${site} tmpl_len=${template.length} ip=${req.ip}`);
 
     try {
-        /*
-         * VULNERABILITY: user-supplied template is passed directly to ejs.render().
-         * EJS executes JavaScript inside <%= ... %> and <% ... %> tags.
-         * An attacker can execute arbitrary OS commands:
-         *
-         *   <%= global.process.mainModule.require('child_process')
-         *       .execSync('cat /etc/rpal/contractor/api-key.txt').toString() %>
-         *
-         * This runs as the rpal-survey service user and reads any file
-         * accessible to that user, including the M5 contractor API key.
-         */
         const output = ejs.render(template, {
             site,
             date:    new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }),
@@ -330,7 +297,6 @@ app.post('/api/reports/generate', requireAuth, (req, res) => {
         });
         res.json({ success: true, output });
     } catch (err) {
-        // Reflect the error — also useful for participants to debug their payloads
         res.status(400).json({ error: err.message });
     }
 });
