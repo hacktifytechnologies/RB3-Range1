@@ -3,21 +3,6 @@
 RPAL Pipeline Tariff SOAP Gateway — app.py
 M3 · ext-soap-gateway · RNG-EXT-01 · SETU DVAAR · OPERATION DEEPSTRIKE
 
-VULNERABILITY: XXE (XML External Entity) → SSRF → Cloud Instance Metadata Service
-
-The SOAP XML parser has external entity processing enabled. This was a legacy
-configuration from when DTD-based schema validation was used during development.
-A forgetful developer never removed `resolve_entities=True` when moving to
-production, and it was never caught in code review.
-
-Attack path:
-  1. Submit SOAP request with external entity referencing http://169.254.169.254/
-  2. Server fetches the IMDS URL on behalf of the attacker (SSRF)
-  3. IMDS returns IAM role credentials in the XML response body
-  4. Credentials extracted from SOAP fault message (which includes entity content)
-
-PNGRB (Petroleum and Natural Gas Regulatory Board) mandates third-party access
-to RPAL's pipeline infrastructure — this SOAP service is the regulatory interface.
 """
 
 from flask import Flask, request, make_response
@@ -29,7 +14,6 @@ logging.basicConfig(level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s',
     stream=sys.stderr)
 
-# Service account for the SOAP gateway (obtained from M2 batchQuery)
 VALID_USER = 'rpal-tariff-svc'
 VALID_PASS = 'TariffGW@Soap!2024#RPAL'
 
@@ -169,22 +153,15 @@ def soap_endpoint():
                  f"action={request.headers.get('SOAPAction','')}")
 
     try:
-        # VULNERABILITY: resolve_entities=True allows XXE
-        # The parser will fetch external entities declared in DOCTYPE
-        # An attacker can point an external entity to:
-        #   http://169.254.169.254/latest/meta-data/
-        # The server fetches it and includes the content in error/response XML
         parser = etree.XMLParser(
-            resolve_entities=True,       # << VULNERABILITY: resolves external entities
-            no_network=False,            # << VULNERABILITY: allows network access
-            load_dtd=True,               # << VULNERABILITY: loads external DTDs
+            resolve_entities=True,      
+            no_network=False,            
+            load_dtd=True,              
             huge_tree=True
         )
         try:
             root = etree.fromstring(body, parser=parser)
         except etree.XMLSyntaxError as e:
-            # If the XML contains entity references that resolve to content,
-            # lxml may include that content in the error message or parsed tree
             err_str = str(e)
             logging.warning(f"XML_PARSE_ERROR: {err_str[:500]} ip={request.remote_addr}")
             return make_response(
@@ -192,8 +169,6 @@ def soap_endpoint():
                 400, {'Content-Type': 'text/xml; charset=utf-8'}
             )
 
-        # Extract resolved entity values from the XML tree
-        # (This is where SSRF content appears in XXE attacks)
         xml_text = etree.tostring(root, encoding='unicode')
 
         # Check WS-Security credentials
@@ -228,10 +203,7 @@ def soap_endpoint():
         volume_el   = root.find('.//tns:volumeMscmd', ns)
 
         if pipeline_el is None:
-            # If the pipeline segment element contains resolved XXE content,
-            # include it in the response — this is how the SSRF output leaks
             pipeline_text = ''
-            # Check if any resolved entity content ended up in the XML
             if '169.254.169.254' in xml_text or 'AccessKeyId' in xml_text:
                 logging.critical(
                     f"XXE_SSRF_DETECTED IMDS_ACCESS ip={request.remote_addr} "
@@ -270,12 +242,6 @@ def soap_endpoint():
             soap_fault('Server', f'Internal gateway error: {str(e)}'),
             500, {'Content-Type': 'text/xml; charset=utf-8'}
         )
-
-# ── Mock IMDS endpoint ─────────────────────────────────────────────────────────
-# Simulates the AWS/OpenStack instance metadata service at 169.254.169.254.
-# In a real OpenStack deployment this would be on the actual link-local address.
-# For the exercise, it runs on localhost and the XXE SSRF is directed here.
-# The setup.sh adds an iptables DNAT rule: 169.254.169.254:80 → 127.0.0.1:8080
 
 @app.route('/latest/')
 @app.route('/latest/meta-data/')
@@ -316,10 +282,8 @@ def imds_iam_creds():
     """
     The IAM role credentials returned by the IMDS.
     These credentials are valid for the internal API gateway at 203.x.x.x:8000.
-    This is what the attacker extracts via XXE → SSRF → IMDS.
     """
     now = datetime.datetime.utcnow()
-    # Deterministic credentials — seeded from date so scoring is consistent
     seed = f"RPAL-IMDS-CREDS-{now.strftime('%Y-%m-%d')}"
     import hashlib
     key_id_raw = hashlib.sha256(f"{seed}:keyid".encode()).hexdigest()[:20].upper()
