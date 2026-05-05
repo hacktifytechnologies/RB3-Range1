@@ -1,4 +1,4 @@
-<img width="2007" height="807" alt="image" src="https://github.com/user-attachments/assets/8732be91-75db-4acc-976c-1345966fea68" /># solve_red.md — M1 · ext-permit-portal
+# solve_red.md — M1 · ext-permit-portal
 ## Red Team Solution Writeup
 **Range:** RNG-EXT-01 · SETU DVAAR · OPERATION DEEPSTRIKE
 **Machine:** M1 — RPAL Exploration Permit Portal
