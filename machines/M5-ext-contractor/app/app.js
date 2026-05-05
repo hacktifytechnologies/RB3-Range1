@@ -1,24 +1,6 @@
 /*
  * RPAL Contractor Registration System
  * M5 · ext-contractor-portal · RNG-EXT-01 · SETU DVAAR · OPERATION DEEPSTRIKE
- *
- * VULNERABILITY: Exposed .git directory via misconfigured express.static
- * CWE-538 (Insertion of Sensitive Information into Externally-Accessible File)
- *
- * The server was deployed directly from a git checkout with:
- *   express.static(APP_ROOT, { dotfiles: 'allow' })
- *
- * This exposes the entire .git directory including:
- *   GET /.git/config         → reveals remote origin
- *   GET /.git/COMMIT_EDITMSG → latest commit message
- *   GET /.git/logs/HEAD      → full commit history with hashes
- *   GET /.git/objects/...    → git object store (all commits, trees, blobs)
- *
- * Participant uses git-dumper (or manual requests) to reconstruct the repo.
- * An older commit contains the ADMIN_TOKEN hardcoded in app.js.
- * That token grants access to GET /admin/export which returns the Range 2 SSH key.
- *
- * TOOLS: git-dumper, wget recursive, or manual requests to /.git/*
  */
 
 'use strict';
@@ -31,24 +13,14 @@ const ejs     = require('ejs');
 const app      = express();
 const PORT     = process.env.PORT || 4000;
 const APP_ROOT = __dirname;
-
-// The admin token is set via environment (current code).
-// But an older git commit has it hardcoded — that's what the attacker finds.
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
 
-// API key from M4 (used for regular authenticated access)
 const API_KEY = 'RPAL-CONTRACTOR-API-2024-xK9mP3nT8qRs7vL2';
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// ── VULNERABILITY: dotfiles: 'allow' exposes .git directory ──────────────────
-// Secure config would be: { dotfiles: 'ignore' } (the default)
-// Developer set 'allow' thinking it only affected hidden files like .htaccess
-// but it exposes the entire .git/ directory tree.
 app.use(express.static(APP_ROOT, { dotfiles: 'allow' }));
 
-// ── Auth middleware ────────────────────────────────────────────────────────────
 function requireApiKey(req, res, next) {
     const key = req.headers['x-api-key'] || req.query.api_key;
     if (key === API_KEY) return next();
@@ -62,7 +34,6 @@ function requireAdmin(req, res, next) {
     res.status(403).json({ error: 'Admin token required.' });
 }
 
-// ── HTML ───────────────────────────────────────────────────────────────────────
 const CSS = `
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#f0f4fa;--white:#fff;--navy:#1e3a5f;--navy2:#162444;--blue:#2563eb;--blue2:#1d4ed8;
@@ -153,7 +124,6 @@ function checkKey() {
 </script>
 </body></html>`;
 
-// ── Data ───────────────────────────────────────────────────────────────────────
 const CONTRACTORS = [
     { id: 1, name: 'Gulf Drilling Solutions',   category: 'Offshore Drilling',      status: 'APPROVED', pan: 'AAAAA1234A', cin: 'U11200MH2019PTC123456' },
     { id: 2, name: 'L&T Hydrocarbon Engineering', category: 'EPCC Services',         status: 'APPROVED', pan: 'BBBBB5678B', cin: 'U45200GJ2002PLC041267' },
@@ -161,7 +131,6 @@ const CONTRACTORS = [
     { id: 4, name: 'ONGC Petro Limited',        category: 'Drilling Services',      status: 'PENDING',  pan: 'DDDDD3456D', cin: 'U11100DL2005GOI123789' },
 ];
 
-// ── Routes ─────────────────────────────────────────────────────────────────────
 app.get('/', (req, res) => {
     res.send(ejs.render(PAGE_INDEX, { contractors: CONTRACTORS.filter(c => c.status === 'APPROVED') }));
 });
@@ -183,18 +152,6 @@ app.get('/api/status', (req, res) => res.json({
 }));
 
 app.get('/admin/export', requireAdmin, (req, res) => {
-    /*
-     * Admin export endpoint — returns the Range 2 pivot credentials.
-     * Accessible only with ADMIN_TOKEN, which was hardcoded in an older
-     * git commit and is recoverable from the exposed .git directory.
-     *
-     * The SSH key is injected via systemd Environment=SSH_KEY=... at runtime.
-     * It is NOT stored in a file readable by the service user or recoverable
-     * from the git history. The only way to get it is through this endpoint
-     * using the admin token found in the git history.
-     */
-    // SSH_KEY is injected via systemd EnvironmentFile with literal \n sequences
-    // Convert them back to real newlines for proper PEM format
     const rawKey = process.env.SSH_KEY || '[SSH key not configured — check setup.sh]';
     const sshKey = rawKey.replace(/\\n/g, '\n');
 
