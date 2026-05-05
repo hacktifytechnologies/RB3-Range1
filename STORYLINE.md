@@ -1,111 +1,69 @@
 # OPERATION DEEPSTRIKE — RNG-EXT-01 Storyline
 ## Range: SETU DVAAR — The Gateway
 
----
-
 ## Narrative Context
 
-The digital modernisation of Rashtriya Petroleum Anveshan Limited began in 2022 under the banner of **URJA DRISHTI 2.0** — a ₹2,400 crore programme to integrate RPAL's upstream exploration operations, pipeline management, and safety systems into a unified digital platform. The programme was delivered under intense pressure from the Ministry of Petroleum, with a mandate to complete Phase 1 (external-facing portals) within 18 months.
+RPAL's URJA DRISHTI 2.0 programme migrated critical systems to a hybrid cloud platform under intense Ministry pressure — 18 months for Phase 1. Speed created technical debt that RPAL's CISO Dr. Sunita Pillai has catalogued in increasingly urgent memos that go unread.
 
-By November 2024, RPAL's public-facing digital estate is live. Exploration permit officers in DGH (Directorate General of Hydrocarbons) and offshore contractors can now apply for, track, and manage petroleum exploration licenses through RPAL's portal ecosystem. Pipeline tariff calculations are automated. Contractor onboarding is paperless.
-
-But the speed of delivery created technical debt that RPAL's security team — led by **Dr. Sunita Pillai** — has been cataloguing in increasingly urgent memos that go largely unread.
+**NEEL TRISHUL** operator **Varuna-2** has been conducting OSINT against RPAL for six weeks.
 
 ---
 
-## The Attacker's Foothold
+## M1 — Exploration Permit Portal (JWT Algorithm Confusion)
 
-**NEEL TRISHUL** operator **Varuna-2** has been conducting OSINT against RPAL for six weeks. The initial reconnaissance identified:
+The portal's JWKS endpoint exposes RPAL's RSA-2048 public key for DGH identity federation. Credential discovery: DGH Block Registry on port 9443 has a path traversal vulnerability — the HTML source contains `<!-- TODO: remove dev-notes.txt from docs dir before DGH go-live -->`. Fetching `?doc=dev-notes.txt` returns contractor credentials left by Arjun Mehta.
 
-- RPAL's exploration permit portal uses JWT-based authentication
-- The portal exposes a JWKS endpoint (`/.well-known/jwks.json`) as part of its OpenID Connect integration with the DGH licensing system
-- The JWT library version embedded in the JavaScript bundle suggests a backend running PyJWT 1.7.x — a version vulnerable to algorithm confusion attacks
-
-The portal was built by an external vendor, Vikram Nair's team integrated it in 48 hours during a weekend deployment window, and the security review was deferred to "post-go-live". That review never happened.
+Varuna-2 logs in with `contractor.01 / Contractor@2024!`, obtains a legitimate RS256 JWT, then extracts the public key from `/.well-known/jwks.json`. The manual JWT verify function accepts both RS256 and HS256 — using the same PUBLIC_KEY_PEM bytes as HMAC secret when alg=HS256. Varuna-2 forges an admin JWT with HS256, unlocking `/api/v1/admin/system-config` and the GraphQL API credentials.
 
 ---
 
-## The SETU DVAAR Attack Narrative
+## M2 — Exploration Data GraphQL API (Schema Enumeration + AuthZ Bypass)
 
-### M1 — Exploration Permit Portal (JWT Algorithm Confusion)
-
-Varuna-2 begins with the RPAL Exploration Permit Portal. The portal is the external face of RPAL's licensing operations — it processes applications for new exploration blocks, manages existing Petroleum Mining Leases (PMLs), and provides status tracking to applicants.
-
-The portal's JWKS endpoint, intended for DGH's identity federation, exposes RPAL's RSA-2048 public key in JWK format. Varuna-2 extracts the public key, converts it from JWK to PEM format, and uses it as the HMAC secret to sign a forged JWT with `alg: HS256` claiming the `permit-officer` role.
-
-> *"The developer who built this assumed that exposing the public key was safe — after all, it's public. What they didn't realise is that PyJWT 1.7.x trusts the algorithm specified in the token header. The public key just became our signing secret."*
-> — Varuna-2 operational log
-
-The forged admin token unlocks the system configuration API, which returns the credentials for the next service in the chain.
+GraphQL introspection is disabled but field suggestions are active. Varuna-2 reconstructs the schema through "Did you mean" error messages. The `batchQuery` resolver — added for performance, never security-reviewed — has no authorisation middleware and exposes the SOAP gateway service account plaintext password.
 
 ---
 
-### M2 — Exploration Data GraphQL API (Schema Enumeration + AuthZ Bypass)
+## M3 — Pipeline Tariff SOAP Gateway (XXE → SSRF → IMDS)
 
-RPAL's Exploration Data API serves geological survey data, well logs, and block allocation information to internal teams and authorised contractors. It uses GraphQL.
-
-The API has GraphQL introspection disabled (a common security measure). However, the `suggestions` feature — which hints at field names when you make a typo — was not disabled. Varuna-2 systematically queries with intentionally malformed field names to reconstruct the schema through suggestion error messages.
-
-The reconstructed schema reveals a `batchQuery` resolver that was added by a developer for "performance optimisation" and never went through the security review that the main resolvers did. The resolver is missing the authorisation middleware — it directly returns data from the `employees` and `systemAccounts` data sources.
+The PNGRB-compliant tariff SOAP service processes XML with `resolve_entities=True` and `no_network=False` — a legacy configuration. Varuna-2 crafts an XXE entity pointing at `169.254.169.254/latest/meta-data/iam/security-credentials/rpal-upstream-api-role`. The IMDS returns deterministic IAM credentials valid for the Geological Survey Portal and a hint: `_rpal_endpoint: http://203.x.x.x:3000`.
 
 ---
 
-### M3 — Pipeline Tariff SOAP Gateway (XXE → SSRF)
+## M4 — Geological Survey Analytics Portal (EJS SSTI → RCE)
 
-RPAL's pipeline tariff calculation service is a legacy SOAP service wrapped in a modern XML gateway. It calculates transportation tariffs for third-party oil producers who use RPAL's pipeline infrastructure — a service mandated by the Petroleum and Natural Gas Regulatory Board (PNGRB).
+The Geological Survey Portal accepts IMDS credentials from M3. It was built by an external vendor for RPAL's geoscience team to generate formatted well log reports. The report generator accepts user-supplied EJS template strings and passes them directly to `ejs.render(template, data)` without sanitisation.
 
-The service processes XML input. The XML parser has external entity processing enabled (a legacy configuration left over from the original implementation, where DTD processing was used for schema validation). Varuna-2 crafts a malicious SOAP request with an XXE payload that performs SSRF to RPAL's cloud instance metadata service.
+> *"The developer saw `ejs.render(template, data)` and assumed the data parameter was the security boundary. It isn't. The template itself executes arbitrary JavaScript."*
 
-The IMDS returns a temporary IAM-equivalent credential for RPAL's internal EC2/OpenStack instance role — valid for the internal API gateway.
+Varuna-2 uses RCE to read `/etc/rpal/contractor/api-key.txt` — a credential file left by Arjun Mehta during integration testing and never cleaned up.
 
----
-
-### M4 — API Gateway HAProxy (HTTP Request Smuggling)
-
-RPAL's API Gateway is an HAProxy reverse proxy that routes traffic between the external portal zone and various internal backend services. The HAProxy configuration uses both `Content-Length` and `Transfer-Encoding` headers in a way that creates a desync condition between HAProxy and the backend.
-
-A legitimate internal service — the permit processing system — makes authenticated requests to the backend API every few seconds. These requests carry the `permit-officer` session token for a privileged internal account.
-
-Varuna-2 crafts a CL.TE smuggled request that positions a partial HTTP request at the head of the backend's connection buffer. The next incoming request from the legitimate service gets appended to Varuna-2's partial request, and the backend reflects the victim's `Authorization` header in an error response — exposing the session token.
-
-> *"This is why HTTP/1.1 pipelining is dangerous when intermediaries interpret headers differently. The proxy sees one request, the backend sees two."*
+Payload: `<%= global.process.mainModule.require('child_process').execSync('cat /etc/rpal/contractor/api-key.txt').toString() %>`
 
 ---
 
-### M5 — Contractor Onboarding Portal (wkhtmltopdf SSRF)
+## M5 — Contractor Registration System (Exposed .git → Admin Token → SSH Key)
 
-RPAL's contractor onboarding portal allows pre-approved vendors and contractors to submit their documentation for HSE compliance, tax registration, and technical qualification assessment. The portal generates PDF summaries of submitted applications using wkhtmltopdf 0.12.5.
+The contractor portal was deployed by Arjun Mehta directly from a git working directory. `express.static(APP_ROOT, { dotfiles: 'allow' })` — a setting Arjun believed only affected files like `.htaccess` — exposes the entire `.git/` directory tree over HTTP.
 
-The PDF template accepts a company profile URL that is fetched and embedded in the generated PDF. The URL is passed directly to wkhtmltopdf — which supports `file://` protocol. Varuna-2 submits a template with `file:///etc/rpal/upstream/config.ini` as the company profile URL.
+Varuna-2 uses `git-dumper` to reconstruct the repository. The initial commit contains the hardcoded admin token before Arjun "fixed" it. The commit message even documents the value:
 
-The generated PDF contains the contents of RPAL's upstream service configuration file — including the SSH private key path and LDAP bind credentials for the corporate IT backbone zone.
+> *"security: move ADMIN_TOKEN to environment variable — Jira DEVOPS-1041 — ADMIN_TOKEN was hardcoded in source code."*
 
-> *"The irony is that this was the most security-reviewed portal in the stack — the HSE compliance team spent three weeks on it. They just never thought to check what the PDF generator could access."*
-> — Varuna-2, operational log, Day 5
+The recovered token unlocks `/admin/export`, which returns the RSA-2048 SSH key for `svc-deploy` access to the Range 2 corporate IT backbone.
 
-**PIVOT COMPLETE — RNG-EXT-02 entry achieved.**
+> *"The commit that was supposed to fix the security problem is the one that tells us exactly what the secret was."* — Varuna-2, operational log, Day 5
 
----
-
-## Network Architecture
-
-```
-[Internet]
-     │
-     ▼ 203.x.x.x/24 — v-Public Zone
-     │
-     ├── M1: permit.rpal.in         :8443  JWT Permit Portal
-     ├── M2: explore-api.rpal.in    :4000  GraphQL Exploration API
-     ├── M3: tariff-gw.rpal.in      :8080  SOAP Tariff Gateway
-     ├── M4: api-gw.rpal.in         :80    HAProxy API Gateway
-     │        ↑ routes to backend   :8000  Backend Flask App
-     └── M5: contractor.rpal.in     :9000  Contractor Onboarding
-
-     Internal IMDS: 169.254.169.254        (SSRF target — M3)
-     Pivot target:  203.x.x.x:22           (RNG-EXT-02 entry)
-```
+**PIVOT COMPLETE — RNG-EXT-02 PRAHARI KENDRA entry achieved.**
 
 ---
+
+## Character Roster
+
+| Character | Role | Mistakes |
+|---|---|---|
+| Arjun Mehta | DevOps Engineer | Hardcoded admin token (M5), API key in file (M4), TODO comments in HTML (M1) |
+| Kavita Rao | Geological Survey Lead | M4 service account owner, never reviewed portal |
+| Vikram Nair | IT Infrastructure Head | Rushed M1 deployment, deferred security review |
+| Dr. Sunita Pillai | CISO | Blue team incident response anchor |
 
 *OPERATION DEEPSTRIKE | RNG-EXT-01 · SETU DVAAR | Classification: RESTRICTED*
-*© 2026 Hacktify Cybersecurity — Rashtriya Petroleum Anveshan Limited*
