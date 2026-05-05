@@ -56,6 +56,8 @@ Expected (with auth):
 ```json
 {"data": {"__typename": "Query"}}
 ```
+<img width="774" height="315" alt="image" src="https://github.com/user-attachments/assets/f74514b9-fa8b-465f-bb18-a9677bb57d9f" />
+
 
 Without auth:
 ```json
